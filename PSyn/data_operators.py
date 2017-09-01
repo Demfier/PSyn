@@ -48,3 +48,23 @@ def find_hyperparams(source_list, alphabets):
     print("Epsilon: %f" % epsilon)
     print("Ci: %f" % ci)
     return(epsilon, ci)
+
+
+def make_csv(filename,
+             dest,
+             seperator='\t',
+             names=['source', 'target', 'prop']):
+    data = pd.read_csv(filename, sep=seperator, names=names)
+
+    pos, tense, card = [], [], []
+
+    def split_prop(prop):
+        parts = prop.split(';')
+        pos.append(parts[0])
+        card.append(parts[-1])
+        tense.append('-'.join(parts[2:-2]))
+
+    data['prop'].apply(split_prop)
+    data.drop('prop', axis=1)
+    data['pos'], data['tense'], data['card'] = pos, tense, card
+    data.to_csv(dest)
