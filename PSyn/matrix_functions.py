@@ -56,8 +56,40 @@ def initialize_unigram_mat(char_ids):
 
 
 def initialize_bigram_mat(alphabets, epsilon):
-    mat_char_list = []
-    for char in alphabets:
+    ci = len(alphabets)
+
+    lpos = range(epsilon + 1)
+    rpos = range(-epsilon, 1)
+
+    char_1_list = []
+    lpos_1_list = []
+    rpos_1_list = []
+
+    char_2_list = []
+    lpos_2_list = []
+    rpos_2_list = []
+
+    for c_1 in alphabets:
+        for l_1 in lpos:
+            for r_1 in rpos:
+                for c_2 in alphabets:
+                    for l_2 in lpos:
+                        for r_2 in rpos:
+                            char_1_list.append(c_1)
+                            lpos_1_list.append(l_1)
+                            rpos_1_list.append(r_1)
+                            char_2_list.append(c_2)
+                            lpos_2_list.append(l_2)
+                            rpos_2_list.append(r_2)
+
+    num_rows = pow(ci * ((epsilon + 1) ** 2), 2)
+    return(pd.DataFrame({'char_1': char_1_list,
+                         'lpos_1': lpos_1_list,
+                         'rpos_1': rpos_1_list,
+                         'char_2': char_2_list,
+                         'lpos_2': lpos_2_list,
+                         'rpos_2': rpos_2_list,
+                         'count': np.zeros(num_rows)}))
 
 
 def store_matrix(matrix, filename, dest, format):
@@ -131,43 +163,52 @@ def update_bigram_mat(bigram_mat, cid_1, cid_2, increment=1):
     return(bigram_mat)
 
 
-def bigram_mat(filename,
-               seperator='\t',
-               names=['source_word', 'final_form', 'source_prop']):
+def bigram_df(filename,
+              seperator='\t',
+              names=['source_word', 'final_form', 'source_prop']):
 
     """Returns a bigram distribution of characters by position"""
     start_time = time.time()
-    print("Making Bigram Character Dataframe for %s" % filename.split('/')[-1])
+    language = filename.split('/')[-1]
+    print("Making Bigram Character Dataframe for %s" % language)
     source_data = ops.make_dataframe(filename, seperator, names)
     word_list = source_data['source_word'].unique()
 
     alphabets = ops.extract_alphabets(word_list)
     (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
     print("N: %f*(%f + 1)^2 = %f\n" % (ci, epsilon, ci * pow(epsilon + 1, 2)))
-    bigram_mat = initialize_bigram_mat(alphabets, epsilon, ci)
+    bigram_mat = initialize_bigram_mat(alphabets, epsilon)
+    mat_size = bigram_mat.shape[0]
+    assert mat_size == pow(ci * ((epsilon + 1) ** 2), 2)
+    print("Initialized Bigram Datafram for %s of size %f" % (language, mat_size))
 
     w_count = 0
     for source in word_list:
         w_count += 1
-        sys.stdout.write("\r{0}\n".format(round((float(w_count)/len(word_list))*100, 3)))
+        sys.stdout.write("\r{0} {1}\n".format(source, round((float(w_count)/len(word_list))*100, 3)))
         sys.stdout.flush()
         s_l = len(source)
         for (i, c_1) in enumerate(source):
-            set_cid1 = [gen_cid(c_1, i + 1, i - s_l),
-                        gen_cid(c_1, 0, i - s_l),
-                        gen_cid(c_1, i + 1, 0),
-                        gen_cid(c_1, 0, 0)]  # All possible ids from c_1
+            set_cid1 = [(c_1, i + 1, i - s_l),
+                        (c_1, 0, i - s_l),
+                        (c_1, i + 1, 0),
+                        (c_1, 0, 0)]  # All possible ids from c_1
             for (j, c_2) in enumerate(source):
                 if j < i:
                     continue
 
                 cid_pairs = []
-                set_cid2 = [gen_cid(c_2, j + 1, j - s_l),
-                            gen_cid(c_2, 0, j - s_l),
-                            gen_cid(c_2, j + 1, 0),
-                            gen_cid(c_2, 0, 0)]  # All possible ids from c_2
+                set_cid2 = [(c_2, j + 1, j - s_l),
+                            (c_2, 0, j - s_l),
+                            (c_2, j + 1, 0),
+                            (c_2, 0, 0)]  # All possible ids from c_2
 
                 for cid_1 in set_cid1:
                     for cid_2 in set_cid2:
                         bigram_mat = update_bigram_mat(bigram_mat, cid_1, cid_2)
                         bigram_mat = update_bigram_mat(bigram_mat, cid_2, cid_1)
+
+    assert bigram_mat.shape[0] == pow(ci * ((epsilon + 1) ** 2), 2)
+    store_matrix(bigram_mat, filename, dest='output/bigram_dfs', format='p')
+    print("Time Taken: %f" % (time.time() - start_time))
+    return(bigram_mat)
