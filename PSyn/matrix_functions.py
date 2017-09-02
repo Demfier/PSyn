@@ -236,5 +236,5 @@ def random_walk(trans_mat):
 
     for i in range(num_iters):
         seed *= np.matmul(seed, trans_mat)
-    mapping = zip(trans_mat.columns, seed)
+    mapping = zip(trans_mat.columns, seed, range(n))
     return(sorted(mapping, key=operator.itemgetter(1), reverse=True))
