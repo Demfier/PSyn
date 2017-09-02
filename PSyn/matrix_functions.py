@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import time
 import sys
+import operator
 
 import PSyn as ps
 import PSyn.data_operators as ops
@@ -229,4 +230,11 @@ def normalize_mat(matrix):
 
 
 def random_walk(trans_mat):
-    return(trans_mat)
+    num_iters = 5
+    n = trans_mat.shape[0]
+    seed = np.array([float(1/n)]*n)
+
+    for i in range(num_iters):
+        seed *= np.matmul(seed, trans_mat)
+    mapping = zip(trans_mat.columns, seed)
+    return(sorted(mapping, key=operator.itemgetter(1), reverse=True))
