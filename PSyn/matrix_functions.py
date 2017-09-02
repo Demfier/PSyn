@@ -212,3 +212,21 @@ def bigram_df(filename,
     store_matrix(bigram_mat, filename, dest='output/bigram_dfs', format='p')
     print("Time Taken: %f" % (time.time() - start_time))
     return(bigram_mat)
+
+
+def normalize_mat(matrix):
+    def normalize(row):
+        zeros = sum(row == 0)
+        if zeros == 0:
+            return(row.apply(lambda x: x/sum(row)))
+        elif zeros == len(row):
+            return(row.apply(lambda x: x + 1/len(row)))
+        zero_prob = zeros/len(row)
+        zero_smoothing = zero_prob/zeros
+        non_zero_smoothing = zero_prob/(len(row) - zeros)
+        return(row.apply(lambda x: float(x + zero_smoothing)/sum(row) if x == 0 else float(x - non_zero_smoothing)/sum(row)))
+    return(matrix.apply(normalize, axis=1))
+
+
+def random_walk(trans_mat):
+    return(trans_mat)
