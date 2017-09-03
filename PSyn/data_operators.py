@@ -37,7 +37,7 @@ def find_hyperparams(source_list, alphabets):
 
     # Find Epsilon
     cumulative_count = 0
-    for word_len in mapping:
+    for word_len in sorted(mapping.keys()):
         cumulative_count += mapping[word_len]
         if cumulative_count > 0.7 * source_words_count:
             epsilon = word_len
@@ -67,4 +67,37 @@ def make_csv(filename,
     data['prop'].apply(split_prop)
     data.drop('prop', axis=1)
     data['pos'], data['tense'], data['card'] = pos, tense, card
+    del data['prop']
     data.to_csv(dest)
+
+
+def largest_common_seq(source, target):
+    s_l = len(source)
+    t_l = len(target)
+
+    common_characters = list()
+    while True:
+        lcs_set = set()
+        counter = [[0]*(t_l + 1) for x in range(s_l + 1)]
+        longest = 0
+        for i in range(s_l):
+            for j in range(t_l):
+                if source[i] == target[j]:
+                    c = counter[i][j] + 1
+                    counter[i + 1][j + 1] = c
+                    if c > longest:
+                        lcs_set = set()
+                        longest = c
+                        lcs_set.add(source[i - c + 1: i + 1])
+                    elif c == longest:
+                        lcs_set.add(source[i - c + 1: i + 1])
+        lcs_list = list(lcs_set)
+        common_characters.extend(lcs_list)
+        if len(lcs_set) == 0:
+            break
+        for char in lcs_list:
+            source = source.replace(char, '*', 1)
+            target = target.replace(char, '+', 1)
+            s_l = len(source)
+            t_l = len(target)
+    return([char for char in common_characters if len(char) > 1])

@@ -94,10 +94,7 @@ def initialize_bigram_mat(alphabets, epsilon):
 
 
 def store_matrix(matrix, filename, dest, format):
-    filename = filename.split('/')
-    filename[-2] = dest
-    final_store_path = '/'.join(filename)
-    final_store_path += '.' + format
+    final_store_path = dest + filename + '.' + format
     if format == 'p':
         matrix.to_pickle(final_store_path)
     elif format == 'csv':
@@ -158,13 +155,23 @@ def update_bigram_mat(bigram_mat, cid_1, cid_2, increment=1):
                          (bigram_mat['char_2'] == c_2) &
                          (bigram_mat['lpos_2'] == lpos_2) &
                          (bigram_mat['rpos_2'] == rpos_2)]
+    if row.empty:
+        new_row = pd.DataFrame({'char_1': [c_1],
+                                'lpos_1': [lpos_1],
+                                'rpos_1': [rpos_1],
+                                'char_2': [c_2],
+                                'lpos_2': [lpos_2],
+                                'rpos_2': [rpos_2],
+                                'count': [1]}, )
+        bigram_mat = bigram_mat.append(new_row, ignore_index=True)
+        return(bigram_mat)
     count = row['count']
     # update an existing row
     bigram_mat.loc[row.index, 'count'] = count + 1
     return(bigram_mat)
 
 
-def bigram_df(filename,
+def bigram_df(filename, dest,
               seperator='\t',
               names=['source_word', 'final_form', 'source_prop']):
 
@@ -172,21 +179,19 @@ def bigram_df(filename,
     start_time = time.time()
     language = filename.split('/')[-1]
     print("Making Bigram Character Dataframe for %s" % language)
-    source_data = ops.make_dataframe(filename, seperator, names)
-    word_list = source_data['source_word'].unique()
+    source_data = pd.read_csv(filename)
+    word_list = source_data[source_data['pos'] == 'N']['source'].unique()
 
     alphabets = ops.extract_alphabets(word_list)
     (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
     print("N: %f*(%f + 1)^2 = %f\n" % (ci, epsilon, ci * pow(epsilon + 1, 2)))
-    bigram_mat = initialize_bigram_mat(alphabets, epsilon)
-    mat_size = bigram_mat.shape[0]
-    assert mat_size == pow(ci * ((epsilon + 1) ** 2), 2)
-    print("Initialized Bigram Datafram for %s of size %f" % (language, mat_size))
+    bigram_mat = pd.DataFrame(columns=['char_1', 'lpos_1', 'rpos_1', 'char_2', 'lpos_2', 'rpos_2', 'count'])
+    print("Initialized Bigram Dataframe formation for %s" % (language))
 
     w_count = 0
     for source in word_list:
         w_count += 1
-        sys.stdout.write("\r{0} {1}\n".format(source, round((float(w_count)/len(word_list))*100, 3)))
+        sys.stdout.write("\r{0}".format(round((float(w_count)/len(word_list))*100, 3)))
         sys.stdout.flush()
         s_l = len(source)
         for (i, c_1) in enumerate(source):
@@ -198,7 +203,6 @@ def bigram_df(filename,
                 if j < i:
                     continue
 
-                cid_pairs = []
                 set_cid2 = [(c_2, j + 1, j - s_l),
                             (c_2, 0, j - s_l),
                             (c_2, j + 1, 0),
@@ -206,11 +210,13 @@ def bigram_df(filename,
 
                 for cid_1 in set_cid1:
                     for cid_2 in set_cid2:
+                        if(cid_1[1] > epsilon or cid_1[2] < -epsilon or
+                           cid_2[1] > epsilon or cid_2[2] < -epsilon):
+                            continue
                         bigram_mat = update_bigram_mat(bigram_mat, cid_1, cid_2)
                         bigram_mat = update_bigram_mat(bigram_mat, cid_2, cid_1)
 
-    assert bigram_mat.shape[0] == pow(ci * ((epsilon + 1) ** 2), 2)
-    store_matrix(bigram_mat, filename, dest='output/bigram_dfs', format='p')
+    store_matrix(bigram_mat, filename.split('/')[-1], dest=dest, format='p')
     print("Time Taken: %f" % (time.time() - start_time))
     return(bigram_mat)
 
@@ -229,12 +235,60 @@ def normalize_mat(matrix):
     return(matrix.apply(normalize, axis=1))
 
 
+def make_trans_mat(bigram_mat):
+    alphabets = bigram_mat['char_1'].unique()
+    epsilon = max(bigram_mat['lpos_1'])
+    ci = len(alphabets)
+    print(alphabets)
+    n = ci * pow(epsilon + 1, 2)
+    cids = gen_char_ids(alphabets, int(epsilon), int(ci))
+    trans_mat = pd.DataFrame(data=np.zeros(shape=(n, n)), columns=cids, index=cids)
+
+    for row in bigram_mat.iterrows():
+        cid_1 = gen_cid(row[1]['char_1'], int(row[1]['lpos_1']), int(row[1]['rpos_1']))
+        cid_2 = gen_cid(row[1]['char_2'], int(row[1]['lpos_2']), int(row[1]['rpos_2']))
+        trans_mat[cid_1][cid_2] = row[1]['count']
+    return(normalize_mat(trans_mat))
+
+
 def random_walk(trans_mat):
     num_iters = 5
     n = trans_mat.shape[0]
-    seed = np.array([float(1/n)]*n)
+    seed = np.array([1.0] + [0.0]*(n-1))
 
     for i in range(num_iters):
         seed = np.matmul(seed, trans_mat)
     mapping = zip(trans_mat.columns, seed, range(n))
     return(sorted(mapping, key=operator.itemgetter(1), reverse=True))
+
+
+def gen_operation_matrix(source_data):
+    """filename: source_csv"""
+    opn_df = pd.DataFrame()
+    for (i, row) in source_data.iterrows():
+        char_pairs = list()
+        source, target = row['source'], row['target']
+        lcs = ops.largest_common_seq(source, target)
+        for p in lcs:
+            source = source.replace(p, '*'*len(p), 1)
+            target = target.replace(p, '+'*len(p), 1)
+        s_remains = [q for q in source.split('*') if len(q) > 0]
+        t_remains = [q for q in target.split('+') if len(q) > 0]
+        for (idx, char) in enumerate(source):
+            if char != '*':
+                if(-len(source)-idx) < 0:
+                    char_pairs.append([row['source'], lcs, 'del', char, idx+1, -(len(source) - idx)])
+                else:
+                    char_pairs.append([row['source'], lcs, 'del', char, idx+1, (-(len(source) - idx) + 1)])
+        for (idx, char) in enumerate(target):
+            if char != '+':
+                if(-len(source)-idx) < 0:
+                    char_pairs.append([row['source'], lcs, 'ins', char, idx+1, -(len(source) - idx)])
+                else:
+                    char_pairs.append([row['source'], lcs, 'ins', char, idx+1, (-(len(source) - idx) + 1)])
+        word_df = pd.DataFrame.from_records(char_pairs, columns=['source', 'rem_subs', 'opn', 'char', 'lpos', 'rpos'])
+        try:
+            opn_df = opn_df.append(word_df)
+        except Exception as e:
+            opn_df = pd.DataFrame(opn_df)
+    return(opn_df)
