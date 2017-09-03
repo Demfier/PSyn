@@ -6,6 +6,7 @@ import pandas as pd
 import time
 import sys
 import operator
+import networkx as nx
 
 import PSyn as ps
 import PSyn.data_operators as ops
@@ -292,3 +293,25 @@ def gen_operation_matrix(source_data):
         except Exception as e:
             opn_df = pd.DataFrame(opn_df)
     return(opn_df)
+
+
+def bigram_mat_nx(source_data):
+    """Way faster implementation for making bigram_matrix.
+    TODO: add the graph generating functions"""
+    bigram_mat = pd.DataFrame()
+    final_trans_mat = pd.DataFrame()
+    for i, row in source_data.iterrows():
+        char_pairs = list()
+        source = row['source']
+        s_l = len(source)
+        for j, char in enumerate(source):
+            char_pairs.append([i, char, j + 1, -(s_l - j)])
+        temp_df = pd.DataFrame.from_records(char_pairs, columns=['word_id', 'char', 'lpos', 'rpos'])
+        temp_trans = pd.merge(temp_df, temp_df, how='outer', on='word_id')
+        temp_trans = temp_trans[(temp_trans['char_x'] != temp_trans['char_y']) | (temp_trans['lpos_x'] != temp_trans['lpos_y']) | (temp_trans['rpos_x'] != temp_trans['rpos_y'])]
+        try:
+            final_trans_mat = final_trans_mat.append(temp_trans)
+        except NameError:
+            final_trans_mat = pd.DataFrame(temp_trans)
+        group = final_trans_mat.groupby(['char_x', 'lpos_x', 'rpos_x', 'char_y', 'lpos_y', 'rpos_y']).count().sort_values('word_id', ascending=False)
+    return(bigram_mat)
