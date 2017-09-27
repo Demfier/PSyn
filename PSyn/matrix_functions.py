@@ -306,12 +306,131 @@ def bigram_mat_nx(source_data):
         s_l = len(source)
         for j, char in enumerate(source):
             char_pairs.append([i, char, j + 1, -(s_l - j)])
-        temp_df = pd.DataFrame.from_records(char_pairs, columns=['word_id', 'char', 'lpos', 'rpos'])
+        temp_df = pd.DataFrame.from_records(char_pairs,
+                                            columns=['word_id',
+                                                     'char',
+                                                     'lpos',
+                                                     'rpos'])
+
         temp_trans = pd.merge(temp_df, temp_df, how='outer', on='word_id')
-        temp_trans = temp_trans[(temp_trans['char_x'] != temp_trans['char_y']) | (temp_trans['lpos_x'] != temp_trans['lpos_y']) | (temp_trans['rpos_x'] != temp_trans['rpos_y'])]
+        temp_trans = temp_trans[(temp_trans['char_x'] != temp_trans['char_y']) |
+                                (temp_trans['lpos_x'] != temp_trans['lpos_y']) |
+                                (temp_trans['rpos_x'] != temp_trans['rpos_y'])]
         try:
             final_trans_mat = final_trans_mat.append(temp_trans)
         except NameError:
             final_trans_mat = pd.DataFrame(temp_trans)
-        group = final_trans_mat.groupby(['char_x', 'lpos_x', 'rpos_x', 'char_y', 'lpos_y', 'rpos_y']).count().sort_values('word_id', ascending=False)
+        group = final_trans_mat.groupby(['char_x',
+                                        'lpos_x',
+                                         'rpos_x',
+                                         'char_y',
+                                         'lpos_y',
+                                         'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+
+        # Initializing Graph formation
+        graph = nx.DiGraph()
+
+        # Getting co-occurence counts for different types (#16) of nodes
+
+        # format_1: x_y_lpos_rpos
+        x_yA = group.groupby(['char_x',
+                              'char_y',
+                              'lpos_y',
+                              'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_2: x_y_lpos
+        x_yL = group.groupby(['char_x',
+                              'char_y',
+                              'lpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_3: x_y_rpos
+        x_yR = group.groupby(['char_x',
+                              'char_y',
+                              'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_4: x_y
+        x_y = group.groupby(['char_x',
+                             'char_y'])
+        .count().sort_values('word_id', ascending=False)
+
+        # format_5: x_lpos_y_lpos_rpos
+        xL_yA = group.groupby(['char_x',
+                               'lpos_x',
+                               'char_y',
+                               'lpos_y',
+                               'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_6: x_lpos_y_lpos
+        xL_yL = group.groupby(['char_x',
+                               'lpos_x',
+                               'char_y',
+                               'lpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_7: x_lpos_y_rpos
+        xL_yR = group.groupby(['char_x',
+                               'lpos_x',
+                               'char_y',
+                               'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_8: x_lpos_y
+        xL_y = group.groupby(['char_x',
+                              'lpos_x',
+                              'char_y'])
+        .count().sort_values('word_id', ascending=False)
+
+        # format_9: x_rpos_y_lpos_rpos
+        xR_yA = group.groupby(['char_x',
+                               'rpos_x',
+                               'char_y',
+                               'lpos_y',
+                               'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_10: x_rpos_y_lpos
+        xR_yL = group.groupby(['char_x',
+                               'rpos_x',
+                               'char_y',
+                               'lpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_11: x_rpos_y_rpos
+        xR_yR = group.groupby(['char_x',
+                               'rpos_x',
+                               'char_y',
+                               'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_12: x_rpos_y
+        xR_y = group.groupby(['char_x',
+                              'rpos_x',
+                              'char_y'])
+        .count().sort_values('word_id', ascending=False)
+
+        # fomrat_13: x_lpos_rpos_y_lpos_rpos
+        xA_yA = group.groupby(['char_x',
+                               'lpos_x',
+                               'rpos_x',
+                               'char_y',
+                               'lpos_y',
+                               'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_14: x_lpos_rpos_y_lpos
+        xA_yL = group.groupby(['char_x',
+                               'lpos_x',
+                               'rpos_x',
+                               'char_y',
+                               'lpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_15: x_lpos_rpos_y_rpos
+        xA_yR = group.groupby(['char_x',
+                               'lpos_x',
+                               'rpos_x',
+                               'char_y',
+                               'rpos_y'])
+        .count().sort_values('word_id', ascending=False)
+        # format_16: x_lpos_rpos_y
+        xA_y = group.groupby(['char_x',
+                              'lpos_x',
+                              'rpos_x',
+                              'char_y'])
+        .count().sort_values('word_id', ascending=False)
+        # All counts calculated!
     return(bigram_mat)
