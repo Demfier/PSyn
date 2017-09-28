@@ -305,11 +305,10 @@ def gen_operation_matrix(source_data):
     return(opn_df)
 
 
-def bigram_mat_nx(source_data, language):
+def bigram_mat_nx(source_data, language, dest):
     """Way faster implementation for making bigram_matrix"""
     start_time = time.time()
-    word_list = source_data[source_data['pos'] == 'N']['source'].unique()
-
+    word_list = source_data['source'].unique()
     alphabets = ops.extract_alphabets(word_list)
     (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
     num_nodes = ci * pow(epsilon + 1, 2)
@@ -336,225 +335,201 @@ def bigram_mat_nx(source_data, language):
             final_trans_mat = final_trans_mat.append(temp_trans)
         except NameError:
             final_trans_mat = pd.DataFrame(temp_trans)
-        group = final_trans_mat.groupby(['char_x',
-                                        'lpos_x',
-                                         'rpos_x',
-                                         'char_y',
-                                         'lpos_y',
-                                         'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
 
-        print('Getting co-occurence counts for different types (#16) of nodes')
-        # format_1: x_y_lpos_rpos
-        x_yA = group.groupby(['char_x',
-                              'char_y',
-                              'lpos_y',
-                              'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_2: x_y_lpos
-        x_yL = group.groupby(['char_x',
-                              'char_y',
-                              'lpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_3: x_y_rpos
-        x_yR = group.groupby(['char_x',
-                              'char_y',
-                              'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_4: x_y
-        x_y = group.groupby(['char_x',
-                             'char_y'])
-        .count().sort_values('word_id', ascending=False)
+    print('Getting co-occurence counts for different types (#16) of nodes')
+    # format_1: x_y_lpos_rpos
+    x_yA = final_trans_mat.groupby(['char_x',
+                                    'char_y',
+                                    'lpos_y',
+                                    'rpos_y']).count().sort_values('word_id', ascending=False)
+    # format_2: x_y_lpos
+    x_yL = final_trans_mat.groupby(['char_x',
+                                    'char_y',
+                                    'lpos_y']).count().sort_values('word_id', ascending=False)
+    # format_3: x_y_rpos
+    x_yR = final_trans_mat.groupby(['char_x',
+                                    'char_y',
+                                    'rpos_y']).count().sort_values('word_id', ascending=False)
+    # format_4: x_y
+    x_y = final_trans_mat.groupby(['char_x',
+                                   'char_y']).count().sort_values('word_id', ascending=False)
 
-        # format_5: x_lpos_y_lpos_rpos
-        xL_yA = group.groupby(['char_x',
-                               'lpos_x',
-                               'char_y',
-                               'lpos_y',
-                               'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_6: x_lpos_y_lpos
-        xL_yL = group.groupby(['char_x',
-                               'lpos_x',
-                               'char_y',
-                               'lpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_7: x_lpos_y_rpos
-        xL_yR = group.groupby(['char_x',
-                               'lpos_x',
-                               'char_y',
-                               'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_8: x_lpos_y
-        xL_y = group.groupby(['char_x',
-                              'lpos_x',
-                              'char_y'])
-        .count().sort_values('word_id', ascending=False)
+    # format_5: x_lpos_y_lpos_rpos
+    xL_yA = final_trans_mat.groupby(['char_x',
+                                     'lpos_x',
+                                     'char_y',
+                                     'lpos_y',
+                                     'rpos_y']).count().sort_values('word_id', ascending=False)
+    # format_6: x_lpos_y_lpos
+    xL_yL = final_trans_mat.groupby(['char_x',
+                                     'lpos_x',
+                                     'char_y',
+                                     'lpos_y']).count().sort_values('word_id', ascending=False)
+    # format_7: x_lpos_y_rpos
+    xL_yR = final_trans_mat.groupby(['char_x',
+                                     'lpos_x',
+                                     'char_y',
+                                     'rpos_y']).count().sort_values('word_id', ascending=False)
+    # format_8: x_lpos_y
+    xL_y = final_trans_mat.groupby(['char_x',
+                                    'lpos_x',
+                                    'char_y']).count().sort_values('word_id', ascending=False)
 
-        # format_9: x_rpos_y_lpos_rpos
-        xR_yA = group.groupby(['char_x',
-                               'rpos_x',
-                               'char_y',
-                               'lpos_y',
-                               'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_10: x_rpos_y_lpos
-        xR_yL = group.groupby(['char_x',
-                               'rpos_x',
-                               'char_y',
-                               'lpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_11: x_rpos_y_rpos
-        xR_yR = group.groupby(['char_x',
-                               'rpos_x',
-                               'char_y',
-                               'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_12: x_rpos_y
-        xR_y = group.groupby(['char_x',
-                              'rpos_x',
-                              'char_y'])
-        .count().sort_values('word_id', ascending=False)
+    # format_9: x_rpos_y_lpos_rpos
+    xR_yA = final_trans_mat.groupby(['char_x',
+                                     'rpos_x',
+                                     'char_y',
+                                     'lpos_y',
+                                     'rpos_y']).count().sort_values('word_id', ascending=False)
+    # format_10: x_rpos_y_lpos
+    xR_yL = final_trans_mat.groupby(['char_x',
+                                     'rpos_x',
+                                     'char_y',
+                                     'lpos_y']).count().sort_values('word_id', ascending=False)
+    # format_11: x_rpos_y_rpos
+    xR_yR = final_trans_mat.groupby(['char_x',
+                                     'rpos_x',
+                                     'char_y',
+                                     'rpos_y']).count().sort_values('word_id', ascending=False)
+    # format_12: x_rpos_y
+    xR_y = final_trans_mat.groupby(['char_x',
+                                    'rpos_x',
+                                    'char_y']).count().sort_values('word_id', ascending=False)
 
-        # fomrat_13: x_lpos_rpos_y_lpos_rpos
-        xA_yA = group.groupby(['char_x',
-                               'lpos_x',
-                               'rpos_x',
-                               'char_y',
-                               'lpos_y',
-                               'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_14: x_lpos_rpos_y_lpos
-        xA_yL = group.groupby(['char_x',
-                               'lpos_x',
-                               'rpos_x',
-                               'char_y',
-                               'lpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_15: x_lpos_rpos_y_rpos
-        xA_yR = group.groupby(['char_x',
-                               'lpos_x',
-                               'rpos_x',
-                               'char_y',
-                               'rpos_y'])
-        .count().sort_values('word_id', ascending=False)
-        # format_16: x_lpos_rpos_y
-        xA_y = group.groupby(['char_x',
-                              'lpos_x',
-                              'rpos_x',
-                              'char_y'])
-        .count().sort_values('word_id', ascending=False)
-        print('All counts calculated!')
+    # fomrat_13: x_lpos_rpos_y_lpos_rpos
+    xA_yA = final_trans_mat.groupby(['char_x',
+                                     'lpos_x',
+                                     'rpos_x',
+                                     'char_y',
+                                     'lpos_y',
+                                     'rpos_y']).count().sort_values('word_id', ascending=False)
+    # format_14: x_lpos_rpos_y_lpos
+    xA_yL = final_trans_mat.groupby(['char_x',
+                                     'lpos_x',
+                                     'rpos_x',
+                                     'char_y',
+                                     'lpos_y']).count().sort_values('word_id', ascending=False)
+    # format_15: x_lpos_rpos_y_rpos
+    xA_yR = final_trans_mat.groupby(['char_x',
+                                     'lpos_x',
+                                     'rpos_x',
+                                     'char_y',
+                                     'rpos_y']).count().sort_values('word_id', ascending=False)
+    # format_16: x_lpos_rpos_y
+    xA_y = final_trans_mat.groupby(['char_x',
+                                    'lpos_x',
+                                    'rpos_x',
+                                    'char_y']).count().sort_values('word_id', ascending=False)
+    print('All counts calculated!')
 
-        # Initializing Graph formation
-        graph = nx.DiGraph()
+    # Initializing Graph formation
+    graph = nx.DiGraph()
 
-        print('Adding edges to the graph')
-        for i in xA_yA.itertuples():
-            if max(i[0][1], i[0][2]) > epsilon or min(i[0][4], i[0][5]) < -epsilon:
-                continue
-            node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
-            node2 = i[0][3] + '_' + str(i[0][4]) + '_' + str(i[0][5])
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xA_yL.itertuples():
-            if max(i[0][1], i[0][2]) > epsilon or i[0][4] < -epsilon:
-                continue
-            node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
-            node2 = i[0][3] + '_' + str(i[0][4]) + '_0'
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xA_yR.itertuples():
-            if max(i[0][1], i[0][2]) > epsilon or i[0][4] < -epsilon:
-                continue
-            node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
-            node2 = i[0][3] + '_0_' + str(i[0][4])
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xA_y.itertuples():
-            if max(i[0][1], i[0][2]) > epsilon:
-                continue
-            node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
-            node2 = i[0][3] + '_0_0'
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
+    print('Adding edges to the graph')
+    for i in xA_yA.itertuples():
+        if max(i[0][1], i[0][2]) > epsilon or min(i[0][4], i[0][5]) < -epsilon:
+            continue
+        node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
+        node2 = i[0][3] + '_' + str(i[0][4]) + '_' + str(i[0][5])
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xA_yL.itertuples():
+        if max(i[0][1], i[0][2]) > epsilon or i[0][4] < -epsilon:
+            continue
+        node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
+        node2 = i[0][3] + '_' + str(i[0][4]) + '_0'
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xA_yR.itertuples():
+        if max(i[0][1], i[0][2]) > epsilon or i[0][4] < -epsilon:
+            continue
+        node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
+        node2 = i[0][3] + '_0_' + str(i[0][4])
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xA_y.itertuples():
+        if max(i[0][1], i[0][2]) > epsilon:
+            continue
+        node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
+        node2 = i[0][3] + '_0_0'
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
 
-        for i in xL_yA.itertuples():
-            if i[0][1] > epsilon or min(i[0][4], i[0][3]) < -epsilon:
-                continue
-            node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
-            node2 = i[0][2] + '_' + str(i[0][3]) + '_' + str(i[0][4])
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xL_yL.itertuples():
-            if i[0][1] > epsilon or i[0][3] < -epsilon:
-                continue
-            node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
-            node2 = i[0][2] + '_' + str(i[0][3]) + '_0'
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xL_yR.itertuples():
-            if i[0][1] > epsilon or i[0][3] < -epsilon:
-                continue
-            node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
-            node2 = i[0][2] + '_0_' + str(i[0][3])
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xL_y.itertuples():
-            if i[0][1] > epsilon:
-                continue
-            node1 = i[0][0] + '_' + str(i[0][1])
-            node2 = i[0][2] + '_0_0'
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xL_yA.itertuples():
+        if i[0][1] > epsilon or min(i[0][4], i[0][3]) < -epsilon:
+            continue
+        node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
+        node2 = i[0][2] + '_' + str(i[0][3]) + '_' + str(i[0][4])
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xL_yL.itertuples():
+        if i[0][1] > epsilon or i[0][3] < -epsilon:
+            continue
+        node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
+        node2 = i[0][2] + '_' + str(i[0][3]) + '_0'
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xL_yR.itertuples():
+        if i[0][1] > epsilon or i[0][3] < -epsilon:
+            continue
+        node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
+        node2 = i[0][2] + '_0_' + str(i[0][3])
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xL_y.itertuples():
+        if i[0][1] > epsilon:
+            continue
+        node1 = i[0][0] + '_' + str(i[0][1])
+        node2 = i[0][2] + '_0_0'
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
 
-        for i in xR_yA.itertuples():
-            if i[0][1] > epsilon or min(i[0][4], i[0][3]) < -epsilon:
-                continue
-            node1 = i[0][0] + '_0_' + str(i[0][1])
-            node2 = i[0][2] + '_' + str(i[0][3]) + '_' + str(i[0][4])
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xR_yL.itertuples():
-            if i[0][1] > epsilon or i[0][3] < -epsilon:
-                continue
-            node1 = i[0][0] + '_0_' + str(i[0][1])
-            node2 = i[0][2] + '_' + str(i[0][3]) + '_0'
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xR_yR.itertuples():
-            if i[0][1] > epsilon or i[0][3] < -epsilon:
-                continue
-            node1 = i[0][0]+'_0_'+str(i[0][1])
-            node2 = i[0][2]+'_0_'+str(i[0][3])
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in xR_y.itertuples():
-            if i[0][1] > epsilon:
-                continue
-            node1 = i[0][0] + '_0_' + str(i[0][1])
-            node2 = i[0][2] + '_0_0'
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xR_yA.itertuples():
+        if i[0][1] > epsilon or min(i[0][4], i[0][3]) < -epsilon:
+            continue
+        node1 = i[0][0] + '_0_' + str(i[0][1])
+        node2 = i[0][2] + '_' + str(i[0][3]) + '_' + str(i[0][4])
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xR_yL.itertuples():
+        if i[0][1] > epsilon or i[0][3] < -epsilon:
+            continue
+        node1 = i[0][0] + '_0_' + str(i[0][1])
+        node2 = i[0][2] + '_' + str(i[0][3]) + '_0'
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xR_yR.itertuples():
+        if i[0][1] > epsilon or i[0][3] < -epsilon:
+            continue
+        node1 = i[0][0]+'_0_'+str(i[0][1])
+        node2 = i[0][2]+'_0_'+str(i[0][3])
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in xR_y.itertuples():
+        if i[0][1] > epsilon:
+            continue
+        node1 = i[0][0] + '_0_' + str(i[0][1])
+        node2 = i[0][2] + '_0_0'
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
 
-        for i in x_yA.itertuples():
-            if min(i[0][2], i[0][3]) < -epsilon:
-                continue
-            node1 = i[0][0] + '_0_0'
-            node2 = i[0][1] + '_' + str(i[0][2]) + '_' + str(i[0][3])
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in x_yL.itertuples():
-            if i[0][2] < -epsilon:
-                continue
-            node1 = i[0][0] + '_0_0'
-            node2 = i[0][1] + '_' + str(i[0][2]) + '_0'
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in x_yR.itertuples():
-            if i[0][2] < -epsilon:
-                continue
-            node1 = i[0][0] + '_0_0'
-            node2 = i[0][1] + '_0_' + str(i[0][2])
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
-        for i in x_y.itertuples():
-            node1 = i[0][0] + '_0_0'
-            node2 = i[0][1] + '_0_0'
-            graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in x_yA.itertuples():
+        if min(i[0][2], i[0][3]) < -epsilon:
+            continue
+        node1 = i[0][0] + '_0_0'
+        node2 = i[0][1] + '_' + str(i[0][2]) + '_' + str(i[0][3])
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in x_yL.itertuples():
+        if i[0][2] < -epsilon:
+            continue
+        node1 = i[0][0] + '_0_0'
+        node2 = i[0][1] + '_' + str(i[0][2]) + '_0'
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in x_yR.itertuples():
+        if i[0][2] < -epsilon:
+            continue
+        node1 = i[0][0] + '_0_0'
+        node2 = i[0][1] + '_0_' + str(i[0][2])
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
+    for i in x_y.itertuples():
+        node1 = i[0][0] + '_0_0'
+        node2 = i[0][1] + '_0_0'
+        graph.add_weighted_edges_from([(node1, node2, i[1])])
 
-        # Constructed the directed graph!
-        print(num_nodes, graph.number_of_nodes())
-        bigram_mat = nx.to_pandas_dataframe(graph)
-        print('Generated bigram matrix. Now normalizing')
-        bigram_mat = normalize_mat(bigram_mat)
-        print('Normalization done. Storing the matrix')
-        store_dest = 'data/task1/output/bigram_dfs/'
-        store_matrix(bigram_mat, language, dest=dest, format='p')
-        print("Time Taken: %f" % (time.time() - start_time))
+    # Constructed the directed graph!
+    print(num_nodes, graph.number_of_nodes())
+    bigram_mat = nx.to_pandas_dataframe(graph)
+    print('Generated bigram matrix. Now normalizing')
+    bigram_mat = normalize_mat(bigram_mat)
+    print('Normalization done. Storing the matrix')
+    store_matrix(bigram_mat, language, dest=dest, format='p')
+    print("Time Taken: %f" % (time.time() - start_time))
     return(bigram_mat)
