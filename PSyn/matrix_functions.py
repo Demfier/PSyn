@@ -97,7 +97,17 @@ def initialize_bigram_mat(alphabets, epsilon):
 def store_matrix(matrix, filename, dest, format):
     final_store_path = dest + filename + '.' + format
     if format == 'p':
-        matrix.to_pickle(final_store_path)
+        try:
+            matrix.to_pickle(final_store_path)
+        except MemoryError:
+            # divide into 4 parts
+            smaller_chunks = np.array_split(matrix, len(matrix.index) / 4)
+            for i, mat in enumerate(smaller_chunks):
+                try:
+                    mat.to_pickle(final_store_path + str(i))
+                except MemoryError:
+                    print('Memory Error for %s' % filename)
+                    pass
     elif format == 'csv':
         matrix.to_csv(final_store_path)
     print("Succesfully stored at %s" % final_store_path)
@@ -525,11 +535,16 @@ def bigram_mat_nx(source_data, language, dest):
         graph.add_weighted_edges_from([(node1, node2, i[1])])
 
     # Constructed the directed graph!
-    print(num_nodes, graph.number_of_nodes())
-    bigram_mat = nx.to_pandas_dataframe(graph)
-    print('Generated bigram matrix. Now normalizing')
-    bigram_mat = normalize_mat(bigram_mat)
-    print('Normalization done. Storing the matrix')
+    # We need seperate node_list if some nodes don't appear above
+    node_list = set()
+    for a in alphabets:
+        for i in range(epsilon + 1):
+            for j in range(epsilon + 1):
+                node = a + '_' + str(i) + '_' + str(-j)
+                node_list.add(node)
+    print(num_nodes, graph.number_of_nodes(), len(set(node_list)))
+    bigram_mat = nx.to_pandas_dataframe(graph, nodelist=set(node_list))
+    print('Generated bigram matrix.')
     store_matrix(bigram_mat, language, dest=dest, format='p')
     print("Time Taken: %f" % (time.time() - start_time))
     return(bigram_mat)
