@@ -328,11 +328,7 @@ def bigram_mat_nx(source_data):
                                          'rpos_y'])
         .count().sort_values('word_id', ascending=False)
 
-        # Initializing Graph formation
-        graph = nx.DiGraph()
-
         # Getting co-occurence counts for different types (#16) of nodes
-
         # format_1: x_y_lpos_rpos
         x_yA = group.groupby(['char_x',
                               'char_y',
@@ -433,4 +429,78 @@ def bigram_mat_nx(source_data):
                               'char_y'])
         .count().sort_values('word_id', ascending=False)
         # All counts calculated!
+
+        # Initializing Graph formation
+        graph = nx.DiGraph()
+
+        # Adding edges to the graph
+        for i in xA_yA.itertuples():
+            node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
+            node2 = i[0][3] + '_' + str(i[0][4]) + '_' + str(i[0][5])
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xA_yL.itertuples():
+            node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
+            node2 = i[0][3] + '_' + str(i[0][4]) + '_0'
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xA_yR.itertuples():
+            node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
+            node2 = i[0][3] + '_0_' + str(i[0][4])
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xA_y.itertuples():
+            node1 = i[0][0] + '_' + str(i[0][1]) + '_' + str(i[0][2])
+            node2 = i[0][3] + '_0_0'
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+
+        for i in xL_yA.itertuples():
+            node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
+            node2 = i[0][2] + '_' + str(i[0][3]) + '_' + str(i[0][4])
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xL_yL.itertuples():
+            node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
+            node2 = i[0][2] + '_' + str(i[0][3]) + '_0'
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xL_yR.itertuples():
+            node1 = i[0][0] + '_' + str(i[0][1]) + '_0'
+            node2 = i[0][2] + '_0_' + str(i[0][3])
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xL_y.itertuples():
+            node1 = i[0][0] + '_' + str(i[0][1])
+            node2 = i[0][2] + '_0_0'
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+
+        for i in xR_yA.itertuples():
+            node1 = i[0][0] + '_0_' + str(i[0][1])
+            node2 = i[0][2] + '_' + str(i[0][3]) + '_' + str(i[0][4])
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xR_yL.itertuples():
+            node1 = i[0][0] + '_0_' + str(i[0][1])
+            node2 = i[0][2] + '_' + str(i[0][3]) + '_0'
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xR_yR.itertuples():
+            node1 = i[0][0]+'_0_'+str(i[0][1])
+            node2 = i[0][2]+'_0_'+str(i[0][3])
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in xR_y.itertuples():
+            node1 = i[0][0] + '_0_' + str(i[0][1])
+            node2 = i[0][2] + '_0_0'
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+
+        for i in x_yA.itertuples():
+            node1 = i[0][0] + '_0_0'
+            node2 = i[0][1] + '_' + str(i[0][2]) + '_' + str(i[0][3])
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in x_yL.itertuples():
+            node1 = i[0][0] + '_0_0'
+            node2 = i[0][1] + '_' + str(i[0][2]) + '_0'
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in x_yR.itertuples():
+            node1 = i[0][0] + '_0_0'
+            node2 = i[0][1] + '_0_' + str(i[0][2])
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+        for i in x_y.itertuples():
+            node1 = i[0][0] + '_0_0'
+            node2 = i[0][1] + '_0_0'
+            graph.add_weighted_edges_from([(node1, node2, i[1])])
+
+        # Constructed the directed graph!
     return(bigram_mat)
