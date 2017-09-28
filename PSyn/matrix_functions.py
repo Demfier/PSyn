@@ -233,17 +233,25 @@ def bigram_df(filename, dest,
 
 
 def normalize_mat(matrix):
+    global num_rows
+    num_rows = len(matrix.columns)
+
     def normalize(row):
+        row_sum = row.sum()
         zeros = sum(row == 0)
         if zeros == 0:
-            return(row.apply(lambda x: x/sum(row)))
+            return(row/(row_sum))
         elif zeros == len(row):
-            return(row.apply(lambda x: x + 1/(len(row)**2)))
-        zero_prob = zeros/(len(row)**2)
+            return(row + 1/(num_rows**2))
+        zero_prob = zeros/(num_rows**2)
         zero_smoothing = zero_prob/zeros
-        non_zero_smoothing = zero_prob/((len(row) - zeros)**2)
-        return(row.apply(lambda x: float(x + zero_smoothing)/sum(row) if x == 0 else float(x - non_zero_smoothing)/sum(row)))
+        non_zero_smoothing = zero_prob/((num_rows - zeros)**2)
+        return(row.apply(lambda x: float(x + zero_smoothing)/(row_sum) if x == 0 else float(x - non_zero_smoothing)/(row_sum)))
     return(matrix.apply(normalize, axis=1))
+
+
+def mean_normalization(matrix):
+    return((matrix-matrix.mean())/matrix.std())
 
 
 def make_trans_mat(bigram_mat):
