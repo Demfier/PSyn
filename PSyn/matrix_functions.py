@@ -250,10 +250,6 @@ def normalize_mat(matrix):
     return(matrix.apply(normalize, axis=1))
 
 
-def mean_normalization(matrix):
-    return((matrix-matrix.mean())/matrix.std())
-
-
 def make_trans_mat(bigram_mat):
     alphabets = bigram_mat['char_1'].unique()
     epsilon = max(bigram_mat['lpos_1'])
