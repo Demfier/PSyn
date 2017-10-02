@@ -27,14 +27,11 @@ def decision_tree(adj_mat_path, opn_df_path, save_viz_at=None,
     language = adj_mat_path.split('/')[-1].replace('.p', '')
     print('Language: %s' % language)
     char_id_map = json.load(open(CHAR_ID_MAP_PATH + language, 'r'))
-    print('Char_id_map:', char_id_map)
     adj_mat = pd.read_pickle(adj_mat_path)
     opn_df = pd.read_csv(opn_df_path)
 
     if opn_df.empty:
         return
-
-    print('Constructing X & Y matrix from adj_mat & opn_df respectively..')
     opn_mat = list()
     adj_vec_list = list()
     for row in opn_df.iterrows():
@@ -51,7 +48,6 @@ def decision_tree(adj_mat_path, opn_df_path, save_viz_at=None,
                         row[1]['rpos']])
     opn_mat = np.asarray(opn_mat, dtype='int32')
     adj_vec_list = np.asarray(adj_vec_list)
-    print('Splitting data...')
     # Train:Test::75:25
     train_len = int(0.75 * opn_mat.shape[0])
     train_data = adj_vec_list[:train_len]
