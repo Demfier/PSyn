@@ -554,7 +554,7 @@ def bigram_mat_nx(source_data, language, dest):
     return(bigram_mat)
 
 
-def gen_node_operation_matrix(opn_json, source_data=''):
+def gen_node_operation_matrix(opn_json, source_data):
     source_csv = open(source_data, 'r')
     dict_for_df = {'source': [], 'target': [], 'all_info': [], 'pos': []}
     content = source_csv.readlines()
@@ -576,7 +576,6 @@ def gen_node_operation_matrix(opn_json, source_data=''):
     opn_df = pd.read_json(opn_json)
     node_operation_matrix = pd.DataFrame()
     for source in word_list:
-
         try:
             opn_seq = pd.read_json(opn_df[source]['operation_sequence']).sort_index()
         except KeyError:
@@ -610,15 +609,51 @@ def gen_node_operation_matrix(opn_json, source_data=''):
                     node_operation_matrix = node_operation_matrix.append(
                         pd.DataFrame.from_records({cid: {op: 1}}))
         node_operation_matrix = node_operation_matrix.fillna(0)
-        node_operation_matrix /= node_operation_matrix.sum()
+        # node_operation_matrix /= node_operation_matrix.sum()
     return(node_operation_matrix)
 
 
 def gen_pos_id_map(source_data):
     source = pd.read_csv(source_data, sep='\t', names=['source',
                                                        'target', 'pos_info'])
-    pos_list = source_df['all_info'].unique()
+    pos_list = source_df['pos_info'].unique()
     pos_map = {}
     for i in range(1, range(len(pos_list)) + 1):
         pos_map[pos_list[i]] = i
     return(pos_map)
+
+
+def gen_node_pos_matrix(source_data):
+    source_csv = open(source_data, 'r')
+    dict_for_df = {'source': [], 'target': [], 'all_info': [], 'pos': []}
+    content = source_csv.readlines()
+    for line in content:
+        row = line.split('\t')
+        dict_for_df['source'].append(row[0])
+        dict_for_df['target'].append(row[1])
+        dict_for_df['all_info'].append(row[2].strip())
+        dict_for_df['pos'].append(row[2].split(';')[0])
+    source_df = pd.DataFrame.from_records(dict_for_df)
+    source_df = source_df[source_df['pos'] == 'N']
+
+    word_list = source_df['source'].unique()
+    alphabets = ops.extract_alphabets(word_list)
+    (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
+
+    for row in source_df.iterrows():
+        source = row[1]
+        cids = set()
+        s_len = len(source)
+        for i, char in enumerate(source):
+            if i > epsilon:
+                continue
+            j = i - s_len
+            if j < -epsilon:
+                continue
+            cids.add(gen_cid(char, i + 1, j))
+            cids.add(gen_cid(char, 0, j))
+            cids.add(gen_cid(char, i + 1, 0))
+            cids.add(gen_cid(char, 0, 0))
+
+
+    word_list = source_df['source'].unique()
