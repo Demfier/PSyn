@@ -48,7 +48,9 @@ def decision_tree(adj_mat_path, opn_df_path, save_viz_at=None,
                         row[1]['rpos']])
     opn_mat = np.asarray(opn_mat, dtype='int32')
     adj_vec_list = np.asarray(adj_vec_list)
-    # Train:Test::75:25
+    # TO DO: WTF is this, I am splitting the training data itself!
+    # How stupid!, use test data, because the model won't be trained for some
+    # of the nodes
     train_len = int(0.75 * opn_mat.shape[0])
     train_data = adj_vec_list[:train_len]
     train_target = opn_mat[:train_len]
