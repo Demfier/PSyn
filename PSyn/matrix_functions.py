@@ -575,13 +575,15 @@ def gen_node_operation_matrix(opn_json, source_data):
 
     opn_df = pd.read_json(opn_json)
     node_operation_matrix = pd.DataFrame()
-    for source in word_list:
+    for row in source_df.iterrows():
+        source = row[0]
+        print(source)
         try:
             opn_seq = pd.read_json(opn_df[source]['operation_sequence']).sort_index()
         except KeyError:
             continue
 
-        cids = set()
+        cids = list()
         s_len = len(source)
         for i, char in enumerate(source):
             if i > epsilon:
@@ -608,8 +610,8 @@ def gen_node_operation_matrix(opn_json, source_data):
                 except KeyError:
                     node_operation_matrix = node_operation_matrix.append(
                         pd.DataFrame.from_records({cid: {op: 1}}))
-        node_operation_matrix = node_operation_matrix.fillna(0)
-        # node_operation_matrix /= node_operation_matrix.sum()
+    node_operation_matrix = node_operation_matrix.fillna(0)
+    node_operation_matrix /= node_operation_matrix.sum()
     return(node_operation_matrix)
 
 
@@ -634,15 +636,15 @@ def gen_node_pos_matrix(source_data):
         dict_for_df['all_info'].append(row[2].strip())
         dict_for_df['pos'].append(row[2].split(';')[0])
     source_df = pd.DataFrame.from_records(dict_for_df)
-    source_df = source_df[source_df['pos'] == 'N']
 
     word_list = source_df['source'].unique()
     alphabets = ops.extract_alphabets(word_list)
     (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
 
+    node_pos_matrix = pd.DataFrame()
     for row in source_df.iterrows():
         source = row[1]
-        cids = set()
+        cids = list()
         s_len = len(source)
         for i, char in enumerate(source):
             if i > epsilon:
@@ -655,5 +657,16 @@ def gen_node_pos_matrix(source_data):
             cids.add(gen_cid(char, i + 1, 0))
             cids.add(gen_cid(char, 0, 0))
 
-
-    word_list = source_df['source'].unique()
+        pos = row[3]
+        for cid in cids:
+            try:
+                if str(node_pos_matrix[cid][pos]) == 'nan':
+                    node_pos_matrix[cid][pos] == 1
+                else:
+                    node_pos_matrix[cid][pos] += 1
+            except KeyError:
+                node_pos_matrix = node_pos_matrix.append(
+                    pd.DataFrame.from_records({cid: {pos: 1}}))
+    node_pos_matrix = node_pos_matrix.fillna(0)
+    # node_pos_matrix /= node_pos_matrix.sum()
+    return(node_pos_matrix)
