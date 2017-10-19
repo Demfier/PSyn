@@ -12,4 +12,5 @@ Current tasks:
 *  [ ] Take out the repeated task into one function
 *  [ ] Use classes to modularize the code (*High Priority*)
 *  [ ] Add code documentation
+*  [ ] Fix operation dictionary(*Urgent*)
 *  [ ] Complete this list

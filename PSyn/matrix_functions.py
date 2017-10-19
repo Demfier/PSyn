@@ -738,3 +738,49 @@ def gen_node_tense_card_matrix(source_data):
     node_card_matrix = node_card_matrix.fillna(0)
     node_card_matrix /= node_card_matrix.sum()
     return(node_tense_matrix, node_card_matrix)
+
+
+def gen_labels_matrix(opn_json, source_data):
+    source_csv = open(source_data, 'r')
+    dict_for_df = {'source': [], 'target': [], 'source_node': [], 'pos': []}
+    content = source_csv.readlines()
+    for line in content:
+        row = line.split('\t')
+        dict_for_df['source'].append(row[0])
+        dict_for_df['target'].append(row[1])
+        dict_for_df['source_node'].append(
+            row[0] + '-' + row[2].strip().replace(';', '_'))
+        dict_for_df['pos'].append(row[2].split(';')[0])
+    source_df = pd.DataFrame.from_records(dict_for_df)
+    source_df = source_df[source_df['pos'] == 'N']
+
+    word_list = source_df['source'].unique()
+    alphabets = ops.extract_alphabets(word_list)
+    (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
+
+    source_df = source_df[source_df['pos'] == 'N']
+
+    opn_df = pd.read_json(opn_json)
+    labels_matrix = pd.DataFrame()
+    for row in source_df.iterrows():
+        source = row[1]['source']
+        try:
+            opn_seq = pd.read_json(
+                opn_df[source]['operation_sequence']).sort_index()
+        except KeyError:
+            continue
+
+        source_node = row[1]['source_node']
+
+        opn_seq['opn_node'] = opn_seq['opn'].map(str) + '_' + \
+            opn_seq['char'].map(str) + '_' + opn_seq['lpos'].map(str) + '_' + \
+            opn_seq['rpos'].map(str)
+        opn_as_nodes = opn_seq['opn_node']
+        for op in opn_as_nodes:
+            try:
+                labels_matrix[source_node][op] = 1
+            except KeyError:
+                labels_matrix = labels_matrix.append(
+                    pd.DataFrame.from_records({source_node: {op: 1}}))
+    labels_matrix = labels_matrix.fillna(0)
+    return(labels_matrix)
