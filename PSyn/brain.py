@@ -10,6 +10,15 @@ from time import time
 
 OPN_MAP = {'del': 1, 'ins': 2}
 CHAR_ID_MAP_PATH = 'data/task1/output/char_id_map/'
+SOURCE_PATH = 'data/task1/train/'
+ADJ_PATH = 'data/task1/output/bigram_dfs/normalized/'
+NODE_POS_PATH = 'data/task1/output/node_pos_dfs/'
+NODE_OPN_PATH = 'data/task1/output/opn_dfs/node_opn_dfs/'
+OPN_JSON_PATH = 'data/task1/output/opn_dfs/op_sequence_dict/'
+NODE_TENSE_PATH = 'data/task1/output/node_tense_card_dfs/tense/'
+NODE_CARD_PATH = 'data/task1/output/node_tense_card_dfs/card/'
+LABELS_PATH = 'data/task1/output/labels/'
+CLF_STORE_PATH = 'data/task1/prediction/'
 
 
 def decision_tree(adj_mat_path, opn_df_path, save_viz_at=None,
@@ -107,3 +116,100 @@ def eval_decision_tree(prediction, test_target, class_names=None):
         else:
             accuracy['class_%s' % (class_i + 1)] = float(correct) / num_items
     return(accuracy)
+
+
+def train_Kmodel_classifier(language, classifier='decision_tree'):
+    # Load source csv
+    source_csv = open(SOURCE_PATH + language, 'r')
+    dict_for_df = {'source': [], 'target': [], 'source_node': [], 'pos': []}
+    content = source_csv.readlines()
+    for line in content:
+        row = line.split('\t')
+        dict_for_df['source'].append(row[0])
+        dict_for_df['target'].append(row[1])
+        dict_for_df['source_node'].append(
+            row[0] + '-' + row[2].strip().replace(';', '_'))
+        dict_for_df['pos'].append(row[2].split(';')[0])
+    source_df = pd.DataFrame.from_records(dict_for_df)
+    source_df = source_df[source_df['pos'] == 'N']
+
+    word_list = source_df['source'].unique()
+    alphabets = ops.extract_alphabets(word_list)
+    (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
+
+    # Load Adjacency matrix
+    adj_mat = pickle.load(open(ADJ_PATH + language + '.p', 'rb'))
+
+    # Load Operation Sequence JSON
+    opn_df = pd.read_json(OPN_JSON_PATH + language + '.json')
+
+    # Load Meta matrices
+    node_opn_matrix = pickle.load(open(NODE_OPN_PATH + language + '.p', 'rb'))
+    node_pos_matrix = pickle.load(open(NODE_POS_PATH + language + '.p', 'rb'))
+    node_tense_matrix = pickle.load(
+        open(NODE_TENSE_PATH + language + '.p', 'rb'))
+    node_card_matrix = pickle.load(
+        open(NODE_CARD_PATH + language + '.p', 'rb'))
+
+    # Load Labels
+    labels = pickle.load(open(LABELS_PATH + language + '.p', 'rb'))
+
+    # Get the K classes
+    k_classes = labels.columns
+
+    feature_vectors = np.array([])
+    # Calculate Feature Vector
+    for source_node in source_df['source_node']:
+        (source, pos_info) = source_node.split('-')
+        cids = list()
+        s_len = len(source)
+        for i, char in enumerate(source):
+            if i > epsilon:
+                continue
+            j = i - s_len
+            if j < -epsilon:
+                continue
+            cids.append(gen_cid(char, i + 1, j))
+            cids.append(gen_cid(char, 0, j))
+            cids.append(gen_cid(char, i + 1, 0))
+            cids.append(gen_cid(char, 0, 0))
+
+        feature_vector = np.array([])
+        for idx, cid in enumerate(cids):
+            if idx == 0:
+                feature_vector = np.concatenate((adj_mat[cid],
+                                                 node_pos_matrix[cid],
+                                                 node_tense_matrix[cid],
+                                                 node_card_matrix[cid]))
+                continue
+            feature_vector = np.vstack((feature_vector,
+                                       np.concatenate((adj_mat[cid],
+                                                       node_pos_matrix[cid],
+                                                       node_tense_matrix[cid],
+                                                       node_card_matrix[cid]))))
+        # Avg out char vectors to get a word vector
+        feature_vector = feature_vector.mean(axis=0)
+
+        if !feature_vectors.size:
+            feature_vectors = feature_vector
+        else:
+            feature_vectors = np.vstack((feature_vectors, feature_vector))
+
+    for clas in k_classes:
+        label_for_class = labels[clas]
+        print('Training for operation class %s' % clas)
+        clf = train_a_classifier(feature_vectors, label_for_class, classifier)
+        with open(CLF_STORE_PATH + language + '/' + clas + '_' +
+                  classifier + '.p', 'wb') as m:
+            print('Saving model for class %s' % clas)
+            pickle.dump(clf, m)
+    return(True)
+
+
+def train_a_classifier(feature_vectors, labels, classifier='decision_tree'):
+    if classifier == 'decision_tree':
+        clf = tree.DecisionTreeClassifier()
+        clf.fit(feature_vectors, labels)
+        return(clf)
+    elif:
+        raise('Classifier not supported!')
