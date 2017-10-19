@@ -675,14 +675,14 @@ def gen_node_pos_matrix(source_data):
 
 def gen_node_tense_card_matrix(source_data):
     source_csv = open(source_data, 'r')
-    dict_for_df = {'source': [], 'target': [], 'all_info': [], 'pos': []}
+    dict_for_df = {'source': [], 'target': [], 'tense': [], 'card': [], 'pos': []}
     content = source_csv.readlines()
     for line in content:
         row = line.split('\t')
         dict_for_df['source'].append(row[0])
         dict_for_df['target'].append(row[1])
-        dict_for_df['tense'].append(row[2].split(';')[1:-1])
-        dict_for_df['card'].append(row[2].split(';')[-1])
+        dict_for_df['tense'].append('_'.join(row[2].split(';')[1:-1]))
+        dict_for_df['card'].append(row[2].split(';')[-1].strip())
         dict_for_df['pos'].append(row[2].split(';')[0])
     source_df = pd.DataFrame.from_records(dict_for_df)
     source_df = source_df[source_df['pos'] == 'N']

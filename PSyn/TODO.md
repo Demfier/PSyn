@@ -9,5 +9,7 @@ Current tasks:
 *  [ ] Look for submodule fixes within the code
 *  [ ] Fix the noun-specific code
 *  [ ] Make automated parallel pipeline
+*  [ ] Take out the repeated task into one function
+*  [ ] Use classes to modularize the code (*High Priority*)
 *  [ ] Add code documentation
 *  [ ] Complete this list
