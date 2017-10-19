@@ -1,4 +1,5 @@
 """This constitutes the intelligent part of Program Synthesis"""
+import os
 
 from sklearn import tree
 import pandas as pd
@@ -7,6 +8,8 @@ import json
 import graphviz
 import pickle
 from time import time
+import PSyn.data_operators as ops
+import PSyn.matrix_functions as mfs
 
 OPN_MAP = {'del': 1, 'ins': 2}
 CHAR_ID_MAP_PATH = 'data/task1/output/char_id_map/'
@@ -18,7 +21,9 @@ OPN_JSON_PATH = 'data/task1/output/opn_dfs/op_sequence_dict/'
 NODE_TENSE_PATH = 'data/task1/output/node_tense_card_dfs/tense/'
 NODE_CARD_PATH = 'data/task1/output/node_tense_card_dfs/card/'
 LABELS_PATH = 'data/task1/output/labels/'
-CLF_STORE_PATH = 'data/task1/prediction/'
+CLF_STORE_PATH = 'data/task1/output/prediction/'
+
+TEST_DATA_PATH = 'data/task1/dev/'
 
 
 def decision_tree(adj_mat_path, opn_df_path, save_viz_at=None,
@@ -155,11 +160,14 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
     labels = pickle.load(open(LABELS_PATH + language + '.p', 'rb'))
 
     # Get the K classes
-    k_classes = labels.columns
+    k_classes = labels.index.values
+    label_source_nodes = labels.columns.values
 
     feature_vectors = np.array([])
     # Calculate Feature Vector
     for source_node in source_df['source_node']:
+        if source_node not in label_source_nodes:
+            continue
         (source, pos_info) = source_node.split('-')
         cids = list()
         s_len = len(source)
@@ -169,40 +177,49 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
             j = i - s_len
             if j < -epsilon:
                 continue
-            cids.append(gen_cid(char, i + 1, j))
-            cids.append(gen_cid(char, 0, j))
-            cids.append(gen_cid(char, i + 1, 0))
-            cids.append(gen_cid(char, 0, 0))
+            cids.append(mfs.gen_cid(char, i + 1, j))
+            cids.append(mfs.gen_cid(char, 0, j))
+            cids.append(mfs.gen_cid(char, i + 1, 0))
+            cids.append(mfs.gen_cid(char, 0, 0))
 
         feature_vector = np.array([])
         for idx, cid in enumerate(cids):
-            if idx == 0:
-                feature_vector = np.concatenate((adj_mat[cid],
-                                                 node_pos_matrix[cid],
-                                                 node_tense_matrix[cid],
-                                                 node_card_matrix[cid]))
-                continue
-            feature_vector = np.vstack((feature_vector,
-                                       np.concatenate((adj_mat[cid],
-                                                       node_pos_matrix[cid],
-                                                       node_tense_matrix[cid],
-                                                       node_card_matrix[cid]))))
+            try:
+                if idx == 0:
+                    feature_vector = np.concatenate((adj_mat[cid],
+                                                     node_pos_matrix[cid],
+                                                     node_tense_matrix[cid],
+                                                     node_card_matrix[cid]))
+                    continue
+                feature_vector = np.vstack((feature_vector,
+                                            np.concatenate((adj_mat[cid],
+                                                            node_pos_matrix[cid],
+                                                            node_tense_matrix[cid],
+                                                            node_card_matrix[cid]))))
+            except KeyError:
+                    continue
         # Avg out char vectors to get a word vector
         feature_vector = feature_vector.mean(axis=0)
-
-        if !feature_vectors.size:
+        if not feature_vectors.size:
             feature_vectors = feature_vector
         else:
-            feature_vectors = np.vstack((feature_vectors, feature_vector))
-
+            try:
+                feature_vectors = np.vstack((feature_vectors, feature_vector))
+            except ValueError:
+                feature_vectors = np.vstack((feature_vectors,
+                                            np.zeros(feature_vectors[-1].shape)))
     for clas in k_classes:
-        label_for_class = labels[clas]
-        print('Training for operation class %s' % clas)
+        label_for_class = labels.loc[clas]
+        print(len(feature_vectors), len(label_for_class))
         clf = train_a_classifier(feature_vectors, label_for_class, classifier)
-        with open(CLF_STORE_PATH + language + '/' + clas + '_' +
-                  classifier + '.p', 'wb') as m:
-            print('Saving model for class %s' % clas)
-            pickle.dump(clf, m)
+        store_path = CLF_STORE_PATH + language + '/'
+        try:
+            with open(store_path + clas + '_' + classifier + '.p', 'wb') as m:
+                pickle.dump(clf, m)
+        except FileNotFoundError:
+            os.mkdir(os.path.dirname(store_path))
+            with open(store_path + clas + '_' + classifier + '.p', 'wb') as m:
+                pickle.dump(clf, m)
     return(True)
 
 
@@ -211,5 +228,108 @@ def train_a_classifier(feature_vectors, labels, classifier='decision_tree'):
         clf = tree.DecisionTreeClassifier()
         clf.fit(feature_vectors, labels)
         return(clf)
-    elif:
+    else:
         raise('Classifier not supported!')
+
+
+def test_model_accuracy(language, classifier='decision_tree'):
+    # Load source csv
+    source_csv = open(TEST_DATA_PATH + language.split('-')[0] + '-dev', 'r')
+    dict_for_df = {'source': [], 'target': [], 'source_node': [], 'pos': []}
+    content = source_csv.readlines()
+    for line in content:
+        row = line.split('\t')
+        dict_for_df['source'].append(row[0])
+        dict_for_df['target'].append(row[1])
+        dict_for_df['source_node'].append(
+            row[0] + '-' + row[2].strip().replace(';', '_'))
+        dict_for_df['pos'].append(row[2].split(';')[0])
+    source_df = pd.DataFrame.from_records(dict_for_df)
+    source_df = source_df[source_df['pos'] == 'N']
+
+    word_list = source_df['source'].unique()
+    alphabets = ops.extract_alphabets(word_list)
+    (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
+
+    # Load Adjacency matrix
+    adj_mat = pickle.load(open(ADJ_PATH + language + '.p', 'rb'))
+
+    # Load Operation Sequence JSON
+    opn_df = pd.read_json(OPN_JSON_PATH + language + '.json')
+
+    # Load Meta matrices
+    node_opn_matrix = pickle.load(open(NODE_OPN_PATH + language + '.p', 'rb'))
+    node_pos_matrix = pickle.load(open(NODE_POS_PATH + language + '.p', 'rb'))
+    node_tense_matrix = pickle.load(
+        open(NODE_TENSE_PATH + language + '.p', 'rb'))
+    node_card_matrix = pickle.load(
+        open(NODE_CARD_PATH + language + '.p', 'rb'))
+
+    # Load Labels
+    labels = pickle.load(open(LABELS_PATH + language + 'dev' + '.p', 'rb'))
+
+    # Get the K classes
+    k_classes = labels.index.values
+    label_source_nodes = labels.columns.values
+
+    feature_vectors = np.array([])
+    # Calculate Feature Vector
+    for source_node in source_df['source_node']:
+        if source_node not in label_source_nodes:
+            continue
+        (source, pos_info) = source_node.split('-')
+        cids = list()
+        s_len = len(source)
+        for i, char in enumerate(source):
+            if i > epsilon:
+                continue
+            j = i - s_len
+            if j < -epsilon:
+                continue
+            cids.append(mfs.gen_cid(char, i + 1, j))
+            cids.append(mfs.gen_cid(char, 0, j))
+            cids.append(mfs.gen_cid(char, i + 1, 0))
+            cids.append(mfs.gen_cid(char, 0, 0))
+
+        feature_vector = np.array([])
+        for idx, cid in enumerate(cids):
+            try:
+                if len(feature_vector) == 0:
+                    feature_vector = np.concatenate((adj_mat[cid],
+                                                     node_pos_matrix[cid],
+                                                     node_tense_matrix[cid],
+                                                     node_card_matrix[cid]))
+                    continue
+                feature_vector = np.vstack((feature_vector,
+                                            np.concatenate((adj_mat[cid],
+                                                            node_pos_matrix[cid],
+                                                            node_tense_matrix[cid],
+                                                            node_card_matrix[cid]))))
+            except KeyError:
+                    # print(cid, idx, 'missed')
+                    continue
+        # Avg out char vectors to get a word vector
+        feature_vector = feature_vector.mean(axis=0)
+        if not feature_vectors.size:
+            feature_vectors = feature_vector
+        else:
+            try:
+                feature_vectors = np.vstack((feature_vectors, feature_vector))
+            except ValueError:
+                feature_vectors = np.vstack((feature_vectors,
+                                            np.zeros(feature_vectors[-1].shape)))
+
+    accuracy_dict = {}
+    for clas in k_classes:
+        label_for_class = labels.loc[clas]
+        print(len(feature_vectors), len(label_for_class))
+        # Load trained model
+        try:
+            clf = pickle.load(open(CLF_STORE_PATH + language + '/' + clas + '_' + classifier + '.p', 'rb'))
+        except FileNotFoundError:
+            continue
+        prediction = clf.predict(feature_vectors)
+        comparison = (prediction == label_for_class)
+        accuracy = np.count_nonzero(comparison == True)/float(len(comparison))
+        accuracy_dict[clas] = accuracy
+    return(accuracy_dict)

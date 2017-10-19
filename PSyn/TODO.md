@@ -13,4 +13,5 @@ Current tasks:
 *  [ ] Use classes to modularize the code (*High Priority*)
 *  [ ] Add code documentation
 *  [ ] Fix operation dictionary(*Urgent*)
+*  [ ] Replace .append strategy in generators with forming dictionary(see gen_labels_matrix for reference)(*Urgent*)
 *  [ ] Complete this list

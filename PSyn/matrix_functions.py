@@ -761,7 +761,8 @@ def gen_labels_matrix(opn_json, source_data):
     source_df = source_df[source_df['pos'] == 'N']
 
     opn_df = pd.read_json(opn_json)
-    labels_matrix = pd.DataFrame()
+    labels_dict = {}
+    # labels_matrix = pd.DataFrame()
     for row in source_df.iterrows():
         source = row[1]['source']
         try:
@@ -778,9 +779,9 @@ def gen_labels_matrix(opn_json, source_data):
         opn_as_nodes = opn_seq['opn_node']
         for op in opn_as_nodes:
             try:
-                labels_matrix[source_node][op] = 1
+                labels_dict[source_node][op] = 1
             except KeyError:
-                labels_matrix = labels_matrix.append(
-                    pd.DataFrame.from_records({source_node: {op: 1}}))
+                labels_dict[source_node] = {op: 1}
+    labels_matrix = pd.DataFrame.from_dict(labels_dict)
     labels_matrix = labels_matrix.fillna(0)
     return(labels_matrix)
