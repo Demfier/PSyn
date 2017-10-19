@@ -576,8 +576,7 @@ def gen_node_operation_matrix(opn_json, source_data):
     opn_df = pd.read_json(opn_json)
     node_operation_matrix = pd.DataFrame()
     for row in source_df.iterrows():
-        source = row[0]
-        print(source)
+        source = row[1]['source']
         try:
             opn_seq = pd.read_json(opn_df[source]['operation_sequence']).sort_index()
         except KeyError:
@@ -591,10 +590,10 @@ def gen_node_operation_matrix(opn_json, source_data):
             j = i - s_len
             if j < -epsilon:
                 continue
-            cids.add(gen_cid(char, i + 1, j))
-            cids.add(gen_cid(char, 0, j))
-            cids.add(gen_cid(char, i + 1, 0))
-            cids.add(gen_cid(char, 0, 0))
+            cids.append(gen_cid(char, i + 1, j))
+            cids.append(gen_cid(char, 0, j))
+            cids.append(gen_cid(char, i + 1, 0))
+            cids.append(gen_cid(char, 0, 0))
 
         opn_seq['opn_node'] = opn_seq['opn'].map(str) + '_' + \
             opn_seq['char'].map(str) + '_' + opn_seq['lpos'].map(str) + '_' + \
@@ -636,6 +635,7 @@ def gen_node_pos_matrix(source_data):
         dict_for_df['all_info'].append(row[2].strip())
         dict_for_df['pos'].append(row[2].split(';')[0])
     source_df = pd.DataFrame.from_records(dict_for_df)
+    source_df = source_df[source_df['pos'] == 'N']
 
     word_list = source_df['source'].unique()
     alphabets = ops.extract_alphabets(word_list)
@@ -643,7 +643,7 @@ def gen_node_pos_matrix(source_data):
 
     node_pos_matrix = pd.DataFrame()
     for row in source_df.iterrows():
-        source = row[1]
+        source = row[1]['source']
         cids = list()
         s_len = len(source)
         for i, char in enumerate(source):
@@ -652,12 +652,13 @@ def gen_node_pos_matrix(source_data):
             j = i - s_len
             if j < -epsilon:
                 continue
-            cids.add(gen_cid(char, i + 1, j))
-            cids.add(gen_cid(char, 0, j))
-            cids.add(gen_cid(char, i + 1, 0))
-            cids.add(gen_cid(char, 0, 0))
+            cids.append(gen_cid(char, i + 1, j))
+            cids.append(gen_cid(char, 0, j))
+            cids.append(gen_cid(char, i + 1, 0))
+            cids.append(gen_cid(char, 0, 0))
 
-        pos = row[3]
+        # Yes I know, it will 'N' always, will fix later
+        pos = row[1]['pos']
         for cid in cids:
             try:
                 if str(node_pos_matrix[cid][pos]) == 'nan':
@@ -668,5 +669,5 @@ def gen_node_pos_matrix(source_data):
                 node_pos_matrix = node_pos_matrix.append(
                     pd.DataFrame.from_records({cid: {pos: 1}}))
     node_pos_matrix = node_pos_matrix.fillna(0)
-    # node_pos_matrix /= node_pos_matrix.sum()
+    node_pos_matrix /= node_pos_matrix.sum()
     return(node_pos_matrix)
