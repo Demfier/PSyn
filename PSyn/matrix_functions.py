@@ -671,3 +671,23 @@ def gen_node_pos_matrix(source_data):
     node_pos_matrix = node_pos_matrix.fillna(0)
     node_pos_matrix /= node_pos_matrix.sum()
     return(node_pos_matrix)
+
+
+def gen_node_tense_matrix(source_data):
+    source_csv = open(source_data, 'r')
+    dict_for_df = {'source': [], 'target': [], 'all_info': [], 'pos': []}
+    content = source_csv.readlines()
+    for line in content:
+        row = line.split('\t')
+        dict_for_df['source'].append(row[0])
+        dict_for_df['target'].append(row[1])
+        dict_for_df['all_info'].append(row[2].strip())
+        dict_for_df['pos'].append(row[2].split(';')[0])
+    source_df = pd.DataFrame.from_records(dict_for_df)
+    source_df = source_df[source_df['pos'] == 'N']
+
+    word_list = source_df['source'].unique()
+    alphabets = ops.extract_alphabets(word_list)
+    (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
+
+    node_pos_matrix = pd.DataFrame()
