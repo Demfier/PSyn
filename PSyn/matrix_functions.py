@@ -673,7 +673,7 @@ def gen_node_pos_matrix(source_data):
     return(node_pos_matrix)
 
 
-def gen_node_tense_matrix(source_data):
+def gen_node_tense_card_matrix(source_data):
     source_csv = open(source_data, 'r')
     dict_for_df = {'source': [], 'target': [], 'all_info': [], 'pos': []}
     content = source_csv.readlines()
@@ -681,7 +681,8 @@ def gen_node_tense_matrix(source_data):
         row = line.split('\t')
         dict_for_df['source'].append(row[0])
         dict_for_df['target'].append(row[1])
-        dict_for_df['all_info'].append(row[2].strip())
+        dict_for_df['tense'].append(row[2].split(';')[1:-1])
+        dict_for_df['card'].append(row[2].split(';')[-1])
         dict_for_df['pos'].append(row[2].split(';')[0])
     source_df = pd.DataFrame.from_records(dict_for_df)
     source_df = source_df[source_df['pos'] == 'N']
@@ -690,4 +691,50 @@ def gen_node_tense_matrix(source_data):
     alphabets = ops.extract_alphabets(word_list)
     (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
 
-    node_pos_matrix = pd.DataFrame()
+    node_tense_matrix = pd.DataFrame()
+    node_card_matrix = pd.DataFrame()
+    for row in source_df.iterrows():
+        source = row[1]['source']
+        cids = list()
+        s_len = len(source)
+        for i, char in enumerate(source):
+            if i > epsilon:
+                continue
+            j = i - s_len
+            if j < -epsilon:
+                continue
+            cids.append(gen_cid(char, i + 1, j))
+            cids.append(gen_cid(char, 0, j))
+            cids.append(gen_cid(char, i + 1, 0))
+            cids.append(gen_cid(char, 0, 0))
+
+        tense = row[1]['tense']
+        card = row[1]['card']
+        for cid in cids:
+            # Fill tense
+            try:
+                if str(node_tense_matrix[cid][tense]) == 'nan':
+                    node_tense_matrix[cid][tense] == 1
+                else:
+                    node_tense_matrix[cid][tense] += 1
+            except KeyError:
+                node_tense_matrix = node_tense_matrix.append(
+                    pd.DataFrame.from_records({cid: {tense: 1}}))
+
+            # Fill card
+            try:
+                if str(node_card_matrix[cid][card]) == 'nan':
+                    node_card_matrix[cid][card] = 1
+                else:
+                    node_card_matrix[cid][card] += 1
+            except KeyError:
+                node_card_matrix = node_card_matrix.append(
+                    pd.DataFrame.from_records({cid: {card: 1}}))
+
+    # Final nail in the coffin!
+    node_tense_matrix = node_tense_matrix.fillna(0)
+    node_tense_matrix /= node_tense_matrix.sum()
+
+    node_card_matrix = node_card_matrix.fillna(0)
+    node_card_matrix /= node_card_matrix.sum()
+    return(node_tense_matrix, node_card_matrix)
