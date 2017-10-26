@@ -2,6 +2,7 @@
 import os
 
 from sklearn import tree
+from sklearn.metrics import precision_recall_fscore_support as prf
 import pandas as pd
 import numpy as np
 import json
@@ -10,6 +11,7 @@ import pickle
 from time import time
 import PSyn.data_operators as ops
 import PSyn.matrix_functions as mfs
+from collections import Counter
 
 OPN_MAP = {'del': 1, 'ins': 2}
 CHAR_ID_MAP_PATH = 'data/task1/output/char_id_map/'
@@ -210,7 +212,6 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
                                             np.zeros(feature_vectors[-1].shape)))
     for clas in k_classes:
         label_for_class = labels.loc[clas]
-        print(len(feature_vectors), len(label_for_class))
         clf = train_a_classifier(feature_vectors, label_for_class, classifier)
         store_path = CLF_STORE_PATH + language + '/'
         try:
@@ -319,17 +320,56 @@ def test_model_accuracy(language, classifier='decision_tree'):
                 feature_vectors = np.vstack((feature_vectors,
                                             np.zeros(feature_vectors[-1].shape)))
 
-    accuracy_dict = {}
+    labels_vectors = []
+    prediction_vectors = []
+    prf_ = {}
     for clas in k_classes:
         label_for_class = labels.loc[clas]
-        print(len(feature_vectors), len(label_for_class))
         # Load trained model
         try:
-            clf = pickle.load(open(CLF_STORE_PATH + language + '/' + clas + '_' + classifier + '.p', 'rb'))
+            clf = pickle.load(open(CLF_STORE_PATH + language + '/' + clas +
+                              '_' + classifier + '.p', 'rb'))
         except FileNotFoundError:
             continue
         prediction = clf.predict(feature_vectors)
-        comparison = (prediction == label_for_class)
-        accuracy = np.count_nonzero(comparison == True)/float(len(comparison))
-        accuracy_dict[clas] = accuracy
-    return(accuracy_dict)
+        prediction_vectors.append(prediction)
+        labels_vectors.append(label_for_class)
+        sckit_prf = prf(label_for_class, prediction)
+        prf_[clas] = [sckit_prf[0][0], sckit_prf[1][0], sckit_prf[2][0]]
+
+    labels_vectors = np.array(labels_vectors).T
+    prediction_vectors = np.array(prediction_vectors).T
+    truncated_pred_vecs = []
+    truncated_label_vecs = []
+    for i in range(labels_vectors.shape[0]):
+        label_vec = labels_vectors[i]
+        zero_indexes = []
+        for j, l in enumerate(label_vec):
+            if label_vec[j] == 0:
+                zero_indexes.append(j)
+        label_vec = np.delete(label_vec, zero_indexes)
+        pred_vec = np.delete(prediction_vectors[i], zero_indexes)
+        if label_vec == []:
+            truncated_label_vecs.append([0])
+            truncated_pred_vecs.append([0])
+        else:
+            truncated_label_vecs.append(label_vec)
+            truncated_pred_vecs.append(pred_vec)
+    tp = 0
+    tn = 0
+    fp = 0
+    fn = 0
+    correct_inflections = {}
+    for i in range(len(truncated_pred_vecs)):
+        if False in (truncated_label_vecs[i] == truncated_pred_vecs[i]):
+            fn += 1
+        elif False not in (labels_vectors[i] == prediction_vectors[i]) or False not in (truncated_label_vecs[i] == truncated_pred_vecs[i]):
+            tp += 1
+            source = labels.columns.values[i]
+            correct_inflections[source] = labels[source]
+    macro_labels = labels_vectors.flatten()
+    macro_preds = prediction_vectors.flatten()
+    macro_prf_support = prf(macro_labels, macro_preds)
+    macro_comparison = (macro_labels == macro_preds)
+    macro_prf = [macro_prf_support[0][0], macro_prf_support[1][0], macro_prf_support[2][0], ((macro_comparison == True).sum() / len(macro_comparison))]
+    return(prf_, tp, len(truncated_label_vecs), correct_inflections, macro_prf)
