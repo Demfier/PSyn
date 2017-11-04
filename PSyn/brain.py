@@ -1,17 +1,27 @@
 """This constitutes the intelligent part of Program Synthesis"""
 import os
+from time import time
+from collections import Counter
 
-from sklearn import tree
-from sklearn.metrics import precision_recall_fscore_support as prf
 import pandas as pd
 import numpy as np
 import json
 import graphviz
 import pickle
-from time import time
+
+# For decision Tree
+from sklearn import tree
+from sklearn.metrics import precision_recall_fscore_support as prf
+
+# for CRF
+from sklearn.svm import LinearSVC
+
+# for Random forest
+from sklearn.ensemble import RandomForestClassifier
+
+# other PSyn modules
 import PSyn.data_operators as ops
 import PSyn.matrix_functions as mfs
-from collections import Counter
 
 OPN_MAP = {'del': 1, 'ins': 2}
 CHAR_ID_MAP_PATH = 'data/task1/output/char_id_map/'
@@ -229,6 +239,19 @@ def train_a_classifier(feature_vectors, labels, classifier='decision_tree'):
         clf = tree.DecisionTreeClassifier()
         clf.fit(feature_vectors, labels)
         return(clf)
+    elif classifier == 'crf':
+        # load here as conda doesn't support CRF yet
+        from pystruct.models import ChainCRF, GraphCRF
+        from pystruct.learners import FrankWolfeSSVM
+        model = ChainCRF()
+        ssvm = FrankWolfeSSVM(model=model, C=.1, max_iter=11)
+        y = np.array([np.array([i]) for i in labels])
+        ssvm.fit(np.array([feature_vectors]), y.T.astype(int))
+        return(ssvm)
+    elif classifier == 'random_forest':
+        clf = RandomForestClassifier()
+        clf.fit(feature_vectors, labels)
+        return(clf)
     else:
         raise('Classifier not supported!')
 
@@ -331,11 +354,37 @@ def test_model_accuracy(language, classifier='decision_tree'):
                               '_' + classifier + '.p', 'rb'))
         except FileNotFoundError:
             continue
-        prediction = clf.predict(feature_vectors)
+        if classifier == 'crf':
+            prediction = clf.predict(feature_vectors.reshape(421, 1, 7719))
+        else:
+            prediction = clf.predict(feature_vectors)
         prediction_vectors.append(prediction)
         labels_vectors.append(label_for_class)
-        sckit_prf = prf(label_for_class, prediction)
-        prf_[clas] = [sckit_prf[0][0], sckit_prf[1][0], sckit_prf[2][0]]
+        sckit_prf = prf(label_for_class, prediction, average='micro')
+        tP = 0
+        tN = 0
+        fP = 0
+        fN = 0
+        for i, val in enumerate(label_for_class):
+            if val == 0:
+                if prediction[i] == 0:
+                    tN += 1
+                elif prediction[i] == 1:
+                    fP += 1
+            if val == 1:
+                if prediction[i] == 1:
+                    tP += 1
+                elif prediction[i] == 0:
+                    fN += 1
+        if (tP + fP) != 0 and (tP + fN) != 0:
+            pP = float(tP) / (tP + fP)
+            rR = float(tP) / (tP + fN)
+            fF = 2 / np.sum(1/np.array([pP, rR]))
+            aA = (tP + tN) / float(tP + tN + fP + fN)
+            # print(pP, rR, fF, aA)
+        prf_[clas] = [sckit_prf[0], sckit_prf[1], sckit_prf[2]]
+    if classifier == 'crf':
+        return(prf_)
 
     labels_vectors = np.array(labels_vectors).T
     prediction_vectors = np.array(prediction_vectors).T
@@ -355,6 +404,8 @@ def test_model_accuracy(language, classifier='decision_tree'):
         else:
             truncated_label_vecs.append(label_vec)
             truncated_pred_vecs.append(pred_vec)
+
+    # Macro params
     tp = 0
     tn = 0
     fp = 0
@@ -367,9 +418,37 @@ def test_model_accuracy(language, classifier='decision_tree'):
             tp += 1
             source = labels.columns.values[i]
             correct_inflections[source] = labels[source]
+    # global params
+    TP = 0
+    FP = 0
+    TN = 0
+    FN = 0
+    ones = 0
+    zeros = 0
+    for i in range(len(labels_vectors)):
+        for j, val in enumerate(labels_vectors[i]):
+            if val == 0:
+                zeros += 1
+                if prediction_vectors[i][j] == 0:
+                    TN += 1
+                elif prediction_vectors[i][j] == 1:
+                    FP += 1
+            elif val == 1:
+                ones += 1
+                if prediction_vectors[i][j] == 1:
+                    TP += 1
+                elif prediction_vectors[i][j] == 0:
+                    FN += 1
+
+    P = float(TP) / (TP + FP)
+    R = float(TP) / (TP + FN)
+    F = 2 / np.sum(1/np.array([P, R]))
+    A = (TP + TN) / float(TP + TN + FP + FN)
+    print('ones and zeros', ones, zeros)
+    GLOBAL = {'P': P, 'R': R, 'F': F, 'A': A, 'params': [TP, FP, TN, FN]}
     macro_labels = labels_vectors.flatten()
     macro_preds = prediction_vectors.flatten()
     macro_prf_support = prf(macro_labels, macro_preds)
     macro_comparison = (macro_labels == macro_preds)
     macro_prf = [macro_prf_support[0][0], macro_prf_support[1][0], macro_prf_support[2][0], ((macro_comparison == True).sum() / len(macro_comparison))]
-    return(prf_, tp, len(truncated_label_vecs), correct_inflections, macro_prf)
+    return(prf_, tp, GLOBAL, len(truncated_label_vecs), correct_inflections, macro_prf)
