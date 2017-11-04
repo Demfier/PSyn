@@ -17,4 +17,4 @@ Current tasks:
 *  [ ] Complete this list
 *  [x] Report Model performance for polish
 *  [ ] Report Model performance for multiple languages
-*  [ ] Compare K-model classifier with CRF and Random Forests
+*  [x] Compare K-model classifier with CRF and Random Forests
