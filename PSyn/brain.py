@@ -156,6 +156,7 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
 
     # Load Adjacency matrix
     adj_mat = pickle.load(open(ADJ_PATH + language + '.p', 'rb'))
+    feature_mapping = list(adj_mat.columns)
 
     # Load Operation Sequence JSON
     opn_df = pd.read_json(OPN_JSON_PATH + language + '.json')
@@ -167,6 +168,11 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
         open(NODE_TENSE_PATH + language + '.p', 'rb'))
     node_card_matrix = pickle.load(
         open(NODE_CARD_PATH + language + '.p', 'rb'))
+    feature_mapping += list(node_opn_matrix.columns)
+    feature_mapping += list(node_pos_matrix.columns)
+    feature_mapping += list(node_tense_matrix.columns)
+    with open('feature_map.p', 'wb') as j:
+        pickle.dump(enumerate(feature_mapping), j)
 
     # Load Labels
     labels = pickle.load(open(LABELS_PATH + language + '.p', 'rb'))
@@ -199,15 +205,15 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
             try:
                 if idx == 0:
                     feature_vector = np.concatenate((adj_mat[cid],
-                                                     node_pos_matrix[cid],
-                                                     node_tense_matrix[cid],
-                                                     node_card_matrix[cid]))
+                                                     node_pos_matrix[cid].T,
+                                                     node_tense_matrix[cid].T,
+                                                     node_card_matrix[cid].T))
                     continue
                 feature_vector = np.vstack((feature_vector,
                                             np.concatenate((adj_mat[cid],
-                                                            node_pos_matrix[cid],
-                                                            node_tense_matrix[cid],
-                                                            node_card_matrix[cid]))))
+                                                            node_pos_matrix[cid].T,
+                                                            node_tense_matrix[cid].T,
+                                                            node_card_matrix[cid].T))))
             except KeyError:
                     continue
         # Avg out char vectors to get a word vector
@@ -220,6 +226,7 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
             except ValueError:
                 feature_vectors = np.vstack((feature_vectors,
                                             np.zeros(feature_vectors[-1].shape)))
+    print(feature_vectors.shape)
     for clas in k_classes:
         label_for_class = labels.loc[clas]
         clf = train_a_classifier(feature_vectors, label_for_class, classifier)
@@ -243,7 +250,7 @@ def train_a_classifier(feature_vectors, labels, classifier='decision_tree'):
         # load here as conda doesn't support CRF yet
         from pystruct.models import ChainCRF, GraphCRF
         from pystruct.learners import FrankWolfeSSVM
-        model = ChainCRF()
+        model = GraphCRF()
         ssvm = FrankWolfeSSVM(model=model, C=.1, max_iter=11)
         y = np.array([np.array([i]) for i in labels])
         ssvm.fit(np.array([feature_vectors]), y.T.astype(int))
@@ -381,8 +388,9 @@ def test_model_accuracy(language, classifier='decision_tree'):
             rR = float(tP) / (tP + fN)
             fF = 2 / np.sum(1/np.array([pP, rR]))
             aA = (tP + tN) / float(tP + tN + fP + fN)
-            # print(pP, rR, fF, aA)
-        prf_[clas] = [sckit_prf[0], sckit_prf[1], sckit_prf[2]]
+            # print(tP, tN, fP, fN)
+            prf_[clas] = [pP, rR, fF, aA]
+        # prf_[clas] = [sckit_prf[0], sckit_prf[1], sckit_prf[2]]
     if classifier == 'crf':
         return(prf_)
 
@@ -446,9 +454,11 @@ def test_model_accuracy(language, classifier='decision_tree'):
     A = (TP + TN) / float(TP + TN + FP + FN)
     print('ones and zeros', ones, zeros)
     GLOBAL = {'P': P, 'R': R, 'F': F, 'A': A, 'params': [TP, FP, TN, FN]}
-    macro_labels = labels_vectors.flatten()
-    macro_preds = prediction_vectors.flatten()
-    macro_prf_support = prf(macro_labels, macro_preds)
-    macro_comparison = (macro_labels == macro_preds)
-    macro_prf = [macro_prf_support[0][0], macro_prf_support[1][0], macro_prf_support[2][0], ((macro_comparison == True).sum() / len(macro_comparison))]
-    return(prf_, tp, GLOBAL, len(truncated_label_vecs), correct_inflections, macro_prf)
+    macro_labels = labels_vectors
+    macro_preds = prediction_vectors
+    macro_prf_support = prf(macro_labels, macro_preds, average='macro')
+    true_acc = 0
+    for i in range(macro_labels.shape[0]):
+        if False not in (macro_labels[i] == macro_preds[i]):
+            true_acc += 1
+    return(prf_, true_acc, true_acc/float(len(macro_labels)), len(truncated_label_vecs), correct_inflections, macro_prf_support)

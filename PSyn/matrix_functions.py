@@ -610,6 +610,7 @@ def gen_node_operation_matrix(opn_json, source_data):
                     node_operation_matrix = node_operation_matrix.append(
                         pd.DataFrame.from_records({cid: {op: 1}}))
     node_operation_matrix = node_operation_matrix.fillna(0)
+    node_operation_matrix = node_operation_matrix.groupby(node_operation_matrix.index).sum()
     node_operation_matrix /= node_operation_matrix.sum()
     return(node_operation_matrix)
 
@@ -669,6 +670,7 @@ def gen_node_pos_matrix(source_data):
                 node_pos_matrix = node_pos_matrix.append(
                     pd.DataFrame.from_records({cid: {pos: 1}}))
     node_pos_matrix = node_pos_matrix.fillna(0)
+    node_pos_matrix = node_pos_matrix.groupby(node_pos_matrix.index).sum()
     node_pos_matrix /= node_pos_matrix.sum()
     return(node_pos_matrix)
 
@@ -733,9 +735,11 @@ def gen_node_tense_card_matrix(source_data):
 
     # Final nail in the coffin!
     node_tense_matrix = node_tense_matrix.fillna(0)
+    node_tense_matrix = node_tense_matrix.groupby(node_tense_matrix.index).sum()
     node_tense_matrix /= node_tense_matrix.sum()
 
     node_card_matrix = node_card_matrix.fillna(0)
+    node_card_matrix = node_card_matrix.groupby(node_card_matrix.index).sum()
     node_card_matrix /= node_card_matrix.sum()
     return(node_tense_matrix, node_card_matrix)
 

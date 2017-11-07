@@ -61,3 +61,4 @@ P = [e[0] for e in list(prf.values())]
 R = [e[1] for e in list(prf.values())]
 F = [e[2] for e in list(prf.values())]
 print(np.mean(P), np.mean(R), np.mean(F))
+print(prf)
