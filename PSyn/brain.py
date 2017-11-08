@@ -135,7 +135,7 @@ def eval_decision_tree(prediction, test_target, class_names=None):
     return(accuracy)
 
 
-def train_Kmodel_classifier(language, classifier='decision_tree'):
+def train_Kmodel_classifier(language, classifier='decision_tree', random_training=False):
     # Load source csv
     source_csv = open(SOURCE_PATH + language, 'r')
     dict_for_df = {'source': [], 'target': [], 'source_node': [], 'pos': []}
@@ -186,7 +186,9 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
     for source_node in source_df['source_node']:
         if source_node not in label_source_nodes:
             continue
-        (source, pos_info) = source_node.split('-')
+        source_split = source_node.split('-')
+        source = ''.join(source_split[:-1])
+        pos_info = source_split[-1]
         cids = list()
         s_len = len(source)
         for i, char in enumerate(source):
@@ -205,17 +207,17 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
             try:
                 if idx == 0:
                     feature_vector = np.concatenate((adj_mat[cid],
-                                                     node_pos_matrix[cid].T,
                                                      node_tense_matrix[cid].T,
                                                      node_card_matrix[cid].T))
                     continue
                 feature_vector = np.vstack((feature_vector,
                                             np.concatenate((adj_mat[cid],
-                                                            node_pos_matrix[cid].T,
                                                             node_tense_matrix[cid].T,
                                                             node_card_matrix[cid].T))))
             except KeyError:
                     continue
+            except ValueError:
+                print(cid, adj_mat[cid].shape, node_card_matrix[cid].T.shape, node_tense_matrix[cid].T.shape)
         # Avg out char vectors to get a word vector
         feature_vector = feature_vector.mean(axis=0)
         if not feature_vectors.size:
@@ -227,10 +229,15 @@ def train_Kmodel_classifier(language, classifier='decision_tree'):
                 feature_vectors = np.vstack((feature_vectors,
                                             np.zeros(feature_vectors[-1].shape)))
     print(feature_vectors.shape)
+    if random_training:
+        feature_vectors = np.random.rand(feature_vectors.shape[0],
+                                         feature_vectors.shape[1])
     for clas in k_classes:
         label_for_class = labels.loc[clas]
         clf = train_a_classifier(feature_vectors, label_for_class, classifier)
         store_path = CLF_STORE_PATH + language + '/'
+        if random_training:
+            store_path = CLF_STORE_PATH + language + 'random_training/'
         try:
             with open(store_path + clas + '_' + classifier + '.p', 'wb') as m:
                 pickle.dump(clf, m)
@@ -263,7 +270,7 @@ def train_a_classifier(feature_vectors, labels, classifier='decision_tree'):
         raise('Classifier not supported!')
 
 
-def test_model_accuracy(language, classifier='decision_tree'):
+def test_model_accuracy(language, classifier='decision_tree', random_test=False):
     # Load source csv
     source_csv = open(TEST_DATA_PATH + language.split('-')[0] + '-dev', 'r')
     dict_for_df = {'source': [], 'target': [], 'source_node': [], 'pos': []}
@@ -327,13 +334,11 @@ def test_model_accuracy(language, classifier='decision_tree'):
             try:
                 if len(feature_vector) == 0:
                     feature_vector = np.concatenate((adj_mat[cid],
-                                                     node_pos_matrix[cid],
                                                      node_tense_matrix[cid],
                                                      node_card_matrix[cid]))
                     continue
                 feature_vector = np.vstack((feature_vector,
                                             np.concatenate((adj_mat[cid],
-                                                            node_pos_matrix[cid],
                                                             node_tense_matrix[cid],
                                                             node_card_matrix[cid]))))
             except KeyError:
@@ -353,21 +358,26 @@ def test_model_accuracy(language, classifier='decision_tree'):
     labels_vectors = []
     prediction_vectors = []
     prf_ = {}
+    if random_test:
+        feature_vectors = np.random.rand(feature_vectors.shape[0],
+                                         feature_vectors.shape[1])
     for clas in k_classes:
         label_for_class = labels.loc[clas]
         # Load trained model
         try:
-            clf = pickle.load(open(CLF_STORE_PATH + language + '/' + clas +
+            clf = pickle.load(open(CLF_STORE_PATH + language + 'random_training/' + clas +
                               '_' + classifier + '.p', 'rb'))
         except FileNotFoundError:
             continue
         if classifier == 'crf':
-            prediction = clf.predict(feature_vectors.reshape(421, 1, 7719))
+            prediction = clf.predict(feature_vectors.reshape(421, 1, 4626))
         else:
             prediction = clf.predict(feature_vectors)
+        if classifier == 'random_forest':
+            decision_path = clf.decision_path(feature_vectors)
         prediction_vectors.append(prediction)
         labels_vectors.append(label_for_class)
-        sckit_prf = prf(label_for_class, prediction, average='micro')
+        sckit_prf = prf(label_for_class, prediction, average='macro')
         tP = 0
         tN = 0
         fP = 0
@@ -389,8 +399,8 @@ def test_model_accuracy(language, classifier='decision_tree'):
             fF = 2 / np.sum(1/np.array([pP, rR]))
             aA = (tP + tN) / float(tP + tN + fP + fN)
             # print(tP, tN, fP, fN)
-            prf_[clas] = [pP, rR, fF, aA]
-        # prf_[clas] = [sckit_prf[0], sckit_prf[1], sckit_prf[2]]
+            # prf_[clas] = [pP, rR, fF, aA]
+        prf_[clas] = sckit_prf
     if classifier == 'crf':
         return(prf_)
 
