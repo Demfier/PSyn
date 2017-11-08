@@ -135,7 +135,8 @@ def eval_decision_tree(prediction, test_target, class_names=None):
     return(accuracy)
 
 
-def train_Kmodel_classifier(language, classifier='decision_tree', random_training=False):
+def train_Kmodel_classifier(language, classifier='decision_tree',
+                            random_training=False, train_fasttext=False):
     # Load source csv
     source_csv = open(SOURCE_PATH + language, 'r')
     dict_for_df = {'source': [], 'target': [], 'source_node': [], 'pos': []}
@@ -184,6 +185,8 @@ def train_Kmodel_classifier(language, classifier='decision_tree', random_trainin
     feature_vectors = np.array([])
     # Calculate Feature Vector
     for source_node in source_df['source_node']:
+        if train_fasttext or random_test:
+            continue
         if source_node not in label_source_nodes:
             continue
         source_split = source_node.split('-')
@@ -232,12 +235,17 @@ def train_Kmodel_classifier(language, classifier='decision_tree', random_trainin
     if random_training:
         feature_vectors = np.random.rand(feature_vectors.shape[0],
                                          feature_vectors.shape[1])
+    if train_fasttext:
+        feature_vectors = np.array(pickle.load(open('polish-train.p', 'rb')))
+
     for clas in k_classes:
         label_for_class = labels.loc[clas]
-        clf = train_a_classifier(feature_vectors, label_for_class, classifier)
+        clf = train_a_classifier(feature_vectors[:label_for_class.shape[0]], label_for_class, classifier)
         store_path = CLF_STORE_PATH + language + '/'
         if random_training:
             store_path = CLF_STORE_PATH + language + 'random_training/'
+        if train_fasttext:
+            store_path = CLF_STORE_PATH + language + '/fasttext/'
         try:
             with open(store_path + clas + '_' + classifier + '.p', 'wb') as m:
                 pickle.dump(clf, m)
@@ -270,7 +278,8 @@ def train_a_classifier(feature_vectors, labels, classifier='decision_tree'):
         raise('Classifier not supported!')
 
 
-def test_model_accuracy(language, classifier='decision_tree', random_test=False):
+def test_model_accuracy(language, classifier='decision_tree',
+                        random_test=False, fasttext_test=True):
     # Load source csv
     source_csv = open(TEST_DATA_PATH + language.split('-')[0] + '-dev', 'r')
     dict_for_df = {'source': [], 'target': [], 'source_node': [], 'pos': []}
@@ -313,6 +322,8 @@ def test_model_accuracy(language, classifier='decision_tree', random_test=False)
     feature_vectors = np.array([])
     # Calculate Feature Vector
     for source_node in source_df['source_node']:
+        if fasttext_test:
+            continue
         if source_node not in label_source_nodes:
             continue
         (source, pos_info) = source_node.split('-')
@@ -361,12 +372,23 @@ def test_model_accuracy(language, classifier='decision_tree', random_test=False)
     if random_test:
         feature_vectors = np.random.rand(feature_vectors.shape[0],
                                          feature_vectors.shape[1])
+    if fasttext_test:
+        feature_vectors = pd.read_pickle('polish-test-fasttext.p')['vectors'].values
+        feature_vectors = [np.array(h) for h in feature_vectors]
+        feature_vectors = np.array(feature_vectors)
     for clas in k_classes:
         label_for_class = labels.loc[clas]
         # Load trained model
         try:
-            clf = pickle.load(open(CLF_STORE_PATH + language + 'random_training/' + clas +
-                              '_' + classifier + '.p', 'rb'))
+            if random_test:
+                clf = pickle.load(open(CLF_STORE_PATH + language + 'random_training/' + clas +
+                                  '_' + classifier + '.p', 'rb'))
+            elif fasttext_test:
+                clf = pickle.load(open(CLF_STORE_PATH + language + '/fasttext/' + clas +
+                                  '_' + classifier + '.p', 'rb'))
+            else:
+                clf = pickle.load(open(CLF_STORE_PATH + language + '/' + clas +
+                                  '_' + classifier + '.p', 'rb'))
         except FileNotFoundError:
             continue
         if classifier == 'crf':
@@ -377,7 +399,7 @@ def test_model_accuracy(language, classifier='decision_tree', random_test=False)
             decision_path = clf.decision_path(feature_vectors)
         prediction_vectors.append(prediction)
         labels_vectors.append(label_for_class)
-        sckit_prf = prf(label_for_class, prediction, average='macro')
+        sckit_prf = prf(label_for_class, prediction[:label_for_class.shape[0]], average='macro')
         tP = 0
         tN = 0
         fP = 0
@@ -466,7 +488,7 @@ def test_model_accuracy(language, classifier='decision_tree', random_test=False)
     GLOBAL = {'P': P, 'R': R, 'F': F, 'A': A, 'params': [TP, FP, TN, FN]}
     macro_labels = labels_vectors
     macro_preds = prediction_vectors
-    macro_prf_support = prf(macro_labels, macro_preds, average='macro')
+    macro_prf_support = prf(macro_labels, macro_preds[:macro_labels.shape[0]], average='macro')
     true_acc = 0
     for i in range(macro_labels.shape[0]):
         if False not in (macro_labels[i] == macro_preds[i]):

@@ -6,7 +6,7 @@ import pandas as pd
 import time
 import sys
 import operator
-import networkx as nx
+# import networkx as nx
 
 import PSyn as ps
 import PSyn.data_operators as ops
