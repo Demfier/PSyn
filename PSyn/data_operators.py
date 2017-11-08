@@ -1,4 +1,29 @@
 import pandas as pd
+import numpy as np
+
+
+# class to get batches and perform operations while training the seq2seq model
+class DataIterator:
+    def __init__(self, data, batch_size):
+        self.data = data
+        self.batch_size = batch_size
+        self.iter = self.make_random_iter()
+
+    def next_batch(self):
+        try:
+            idxs = self.iter.next()
+        except StopIteration:
+            self.iter = self.make_random_iter()
+            idxs = self.iter.next()
+        X, Y = zip(*[self.data[i] for i in idxs])
+        X = np.array(X).T
+        Y = np.array(Y).T
+        return X, Y
+
+    def make_random_iter(self):
+        splits = np.arange(self.batch_size, len(self.data), self.batch_size)
+        it = np.split(np.random.permutation(range(len(self.data))), splits)[:-1]
+        return iter(it)
 
 
 def make_dataframe(file, seperator, names):

@@ -1,5 +1,6 @@
 """This constitutes the intelligent part of Program Synthesis"""
 import os
+import sys
 from time import time
 from collections import Counter
 
@@ -18,6 +19,11 @@ from sklearn.svm import LinearSVC
 
 # for Random forest
 from sklearn.ensemble import RandomForestClassifier
+
+# for Seq2Seq model
+import tensorflow as tf
+from tensorflow.python.framework import ops
+from tensorflow.models.rnn import rnn_cell, seq2seq
 
 # other PSyn modules
 import PSyn.data_operators as ops
@@ -494,3 +500,105 @@ def test_model_accuracy(language, classifier='decision_tree',
         if False not in (macro_labels[i] == macro_preds[i]):
             true_acc += 1
     return(prf_, true_acc, true_acc/float(len(macro_labels)), len(truncated_label_vecs), correct_inflections, macro_prf_support)
+
+
+def train_seq2seq_model(data_train, hyperparams):
+    """
+    data_train --> (source, target) pair where source and targets are sequenced
+    """
+    # Reset graphs and sessions
+    ops.reset_default_graph()
+    try:
+        sess.close()
+    except:
+
+        pass
+    sess = tf.InteractiveSession()
+
+    input_seq_length = hyperparams['input_seq_length']
+    output_seq_length = hyperparams['output_seq_length']
+    batch_size = 50
+
+    input_vocab_size = hyperparams['input_vocab_size']
+    output_vocab_size = hyperparams['output_vocab_size']
+    embedding_dim = 256
+
+    encode_input = [tf.placeholder(tf.int32,
+                                   shape=(None,),
+                                   name="ei_%i" % i)
+                    for i in range(input_seq_length)]
+
+    labels = [tf.placeholder(tf.int32,
+                             shape=(None,),
+                             name="l_%i" % i)
+              for i in range(output_seq_length)]
+
+    decode_input = [tf.zeros_like(encode_input[0],
+                                  dtype=np.int32, name="START")] + labels[:-1]
+
+    # Meat of the model
+    keep_prob = tf.placeholder("float")
+    cells = [rnn_cell.DropoutWrapper(rnn_cell.BasicLSTMCell(embedding_dim),
+                                     output_keep_prob=keep_prob)
+             for i in range(3)]
+    stacked_lstm = rnn_cell.MultiRNNCell(cells)
+
+    with tf.variable_scope("decoders") as scope:
+        decode_outputs, decode_state = seq2seq.embedding_rnn_seq2seq(
+            encode_input, decode_input, stacked_lstm,
+            input_vocab_size, output_vocab_size)
+
+        scope.reuse_variables()
+
+        decode_outputs_test, decode_state_test = seq2seq.embedding_rnn_seq2seq(
+            encode_input, decode_input, stacked_lstm,
+            input_vocab_size, output_vocab_size,
+            feed_previous=True)
+
+    loss_weights = [tf.ones_like(l, dtype=tf.float32) for l in labels]
+    loss = seq2seq.sequence_loss(decode_outputs, labels, loss_weights, output_vocab_size)
+    optimizer = tf.train.AdamOptimizer(1e-4)
+    train_op = optimizer.minimize(loss)
+
+    sess.run(tf.initialize_all_variables())
+
+    train_iter = ops.DataIterator(data_train, 128)
+
+
+# Helper functions for seq2seq model
+def get_feed(X, Y):
+    feed_dict = {encode_input[t]: X[t] for t in range(input_seq_length)}
+    feed_dict.update({labels[t]: Y[t] for t in range(output_seq_length)})
+    return feed_dict
+
+
+def train_batch(data_iter):
+    X, Y = data_iter.next_batch()
+    feed_dict = get_feed(X, Y)
+    feed_dict[keep_prob] = 0.5
+    _, out = sess.run([train_op, loss], feed_dict)
+    return out
+
+
+def get_eval_batch_data(data_iter):
+    X, Y = data_iter.next_batch()
+    feed_dict = get_feed(X, Y)
+    feed_dict[keep_prob] = 1.
+    all_output = sess.run([loss] + decode_outputs_test, feed_dict)
+    eval_loss = all_output[0]
+    decode_output = np.array(all_output[1:]).transpose([1, 0, 2])
+    return eval_loss, decode_output, X, Y
+
+
+def eval_batch(data_iter, num_batches):
+    losses = []
+    predict_loss = []
+    for i in range(num_batches):
+        eval_loss, output, X, Y = get_eval_batch_data(data_iter)
+        losses.append(eval_loss)
+
+        for index in range(len(output)):
+            real = Y.T[index]
+            predict = np.argmax(output, axis=2)[index]
+            predict_loss.append(all(real == predict))
+    return np.mean(losses), np.mean(predict_loss)
