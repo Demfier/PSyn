@@ -22,11 +22,11 @@ from sklearn.ensemble import RandomForestClassifier
 
 # for Seq2Seq model
 import tensorflow as tf
-from tensorflow.python.framework import ops
-from tensorflow.models.rnn import rnn_cell, seq2seq
+# from tensorflow.python.framework import ops
+# from tensorflow.contrib import rnn, legacy_seq2seq
 
 # other PSyn modules
-import PSyn.data_operators as ops
+import PSyn.data_operators as dops
 import PSyn.matrix_functions as mfs
 
 OPN_MAP = {'del': 1, 'ins': 2}
@@ -158,8 +158,8 @@ def train_Kmodel_classifier(language, classifier='decision_tree',
     source_df = source_df[source_df['pos'] == 'N']
 
     word_list = source_df['source'].unique()
-    alphabets = ops.extract_alphabets(word_list)
-    (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
+    alphabets = dops.extract_alphabets(word_list)
+    (epsilon, ci) = dops.find_hyperparams(word_list, alphabets)
 
     # Load Adjacency matrix
     adj_mat = pickle.load(open(ADJ_PATH + language + '.p', 'rb'))
@@ -301,8 +301,8 @@ def test_model_accuracy(language, classifier='decision_tree',
     source_df = source_df[source_df['pos'] == 'N']
 
     word_list = source_df['source'].unique()
-    alphabets = ops.extract_alphabets(word_list)
-    (epsilon, ci) = ops.find_hyperparams(word_list, alphabets)
+    alphabets = dops.extract_alphabets(word_list)
+    (epsilon, ci) = dops.find_hyperparams(word_list, alphabets)
 
     # Load Adjacency matrix
     adj_mat = pickle.load(open(ADJ_PATH + language + '.p', 'rb'))
@@ -502,22 +502,21 @@ def test_model_accuracy(language, classifier='decision_tree',
     return(prf_, true_acc, true_acc/float(len(macro_labels)), len(truncated_label_vecs), correct_inflections, macro_prf_support)
 
 
-def train_seq2seq_model(data_train, hyperparams):
+def train_n_evaluate_seq2seq_model(data_train, val_iter, test_iter, hyperparams):
     """
     data_train --> (source, target) pair where source and targets are sequenced
+    returns --> eval_loss, ouput,
     """
-    # Reset graphs and sessions
-    ops.reset_default_graph()
+    tf.reset_default_graph()
     try:
         sess.close()
     except:
-
         pass
-    sess = tf.InteractiveSession()
+    sess = tf.Session()
 
     input_seq_length = hyperparams['input_seq_length']
     output_seq_length = hyperparams['output_seq_length']
-    batch_size = 50
+    batch_size = 128
 
     input_vocab_size = hyperparams['input_vocab_size']
     output_vocab_size = hyperparams['output_vocab_size']
@@ -538,19 +537,19 @@ def train_seq2seq_model(data_train, hyperparams):
 
     # Meat of the model
     keep_prob = tf.placeholder("float")
-    cells = [rnn_cell.DropoutWrapper(rnn_cell.BasicLSTMCell(embedding_dim),
-                                     output_keep_prob=keep_prob)
+    cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(embedding_dim),
+                                output_keep_prob=keep_prob)
              for i in range(3)]
-    stacked_lstm = rnn_cell.MultiRNNCell(cells)
+    stacked_lstm = tf.contrib.rnn.MultiRNNCell(cells)
 
     with tf.variable_scope("decoders") as scope:
-        decode_outputs, decode_state = seq2seq.embedding_rnn_seq2seq(
+        decode_outputs, decode_state = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq(
             encode_input, decode_input, stacked_lstm,
             input_vocab_size, output_vocab_size)
 
         scope.reuse_variables()
 
-        decode_outputs_test, decode_state_test = seq2seq.embedding_rnn_seq2seq(
+        decode_outputs_test, decode_state_test = tf.contrib.nn.legacy_seq2seq.embedding_rnn_seq2seq(
             encode_input, decode_input, stacked_lstm,
             input_vocab_size, output_vocab_size,
             feed_previous=True)
@@ -560,29 +559,43 @@ def train_seq2seq_model(data_train, hyperparams):
     optimizer = tf.train.AdamOptimizer(1e-4)
     train_op = optimizer.minimize(loss)
 
-    sess.run(tf.initialize_all_variables())
+    sess.run(tf.global_variables_initializer())
 
-    train_iter = ops.DataIterator(data_train, 128)
+    for i in range(len(list(data_train))):
+        try:
+            train_batch(train_iter, input_seq_length, output_seq_length)
+            if i % 500 == 0:
+                val_loss, val_predict = eval_batch(val_iter, 16, input_seq_length, output_seq_length)
+                train_loss, train_predict = eval_batch(train_iter, 16, input_seq_length, output_seq_length)
+                print("val loss   : %f, val predict   = %.1f%%" % (val_loss, val_predict * 100))
+                print("train loss : %f, train predict = %.1f%%" % (train_loss, train_predict * 100))
+                print
+                sys.stdout.flush()
+        except KeyboardInterrupt:
+            print("interrupted by user")
+            break
+
+    return(get_eval_batch_data(test_iter, input_seq_length, output_seq_length))
 
 
 # Helper functions for seq2seq model
-def get_feed(X, Y):
-    feed_dict = {encode_input[t]: X[t] for t in range(input_seq_length)}
-    feed_dict.update({labels[t]: Y[t] for t in range(output_seq_length)})
+def get_feed(X, Y, isl, osl, encode_input, labels):
+    feed_dict = {encode_input[t]: X[t] for t in range(isl)}
+    feed_dict.update({labels[t]: Y[t] for t in range(osl)})
     return feed_dict
 
 
-def train_batch(data_iter):
+def train_batch(data_iter, isl, osl, encode_input, labels, train_op, loss, keep_prob, sess):
     X, Y = data_iter.next_batch()
-    feed_dict = get_feed(X, Y)
+    feed_dict = get_feed(X, Y, isl, osl, encode_input, labels)
     feed_dict[keep_prob] = 0.5
     _, out = sess.run([train_op, loss], feed_dict)
     return out
 
 
-def get_eval_batch_data(data_iter):
+def get_eval_batch_data(data_iter, isl, osl, encode_input, labels, keep_prob, loss, decode_outputs_test, sess):
     X, Y = data_iter.next_batch()
-    feed_dict = get_feed(X, Y)
+    feed_dict = get_feed(X, Y, isl, osl, encode_input, labels)
     feed_dict[keep_prob] = 1.
     all_output = sess.run([loss] + decode_outputs_test, feed_dict)
     eval_loss = all_output[0]
@@ -590,11 +603,11 @@ def get_eval_batch_data(data_iter):
     return eval_loss, decode_output, X, Y
 
 
-def eval_batch(data_iter, num_batches):
+def eval_batch(data_iter, num_batches, isl, osl, encode_input, labels, keep_prob, loss, decode_outputs_test, sess):
     losses = []
     predict_loss = []
     for i in range(num_batches):
-        eval_loss, output, X, Y = get_eval_batch_data(data_iter)
+        eval_loss, output, X, Y = get_eval_batch_data(data_iter, isl, osl, encode_input, labels, keep_prob, loss, decode_outputs_test, sess)
         losses.append(eval_loss)
 
         for index in range(len(output)):
