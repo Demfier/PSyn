@@ -1,3 +1,4 @@
+# Helper functions for seq2seq model
 import pickle as p
 import pandas as pd
 import numpy as np
@@ -11,7 +12,7 @@ from PSyn import brain
 import tensorflow as tf
 from tensorflow.python.framework import ops
 
-# Helper functions for seq2seq model
+
 def get_feed(X, Y, isl, osl):
     feed_dict = {encode_input[t]: X[t] for t in range(isl)}
     feed_dict.update({labels[t]: Y[t] for t in range(osl)})
@@ -49,8 +50,10 @@ def eval_batch(data_iter, num_batches, isl, osl):
             predict_loss.append(all(real == predict))
     return np.mean(losses), np.mean(predict_loss)
 
-source = pd.read_csv('data/task1/train/polish-train-high', sep='\t', names=['source', 'target', 'pos'])
-test = pd.read_csv('data/task1/dev/polish-dev', sep='\t', names=['source', 'target', 'pos'])
+source = pd.read_csv('data/task1/train/polish-train-high',
+                     sep='\t', names=['source', 'target', 'pos'])
+test = pd.read_csv('data/task1/dev/polish-dev',
+                   sep='\t', names=['source', 'target', 'pos'])
 
 letters = set()
 for s in source['source']:
@@ -66,12 +69,14 @@ letter_to_index = dict((v, k) for k, v in index_to_letter.items())
 source_inflection_dict = {}
 
 for row in source.iterrows():
-    source_inflection_dict[row[1]['source']] = [letter_to_index[l] for l in row[1]['target']]
+    source_inflection_dict[row[1]['source']] = [letter_to_index[l]
+                                                for l in row[1]['target']]
 
 test_inflection = {}
 
 for row in test.iterrows():
-    test_inflection[row[1]['source']] = [letter_to_index[l] for l in row[1]['target']]
+    test_inflection[row[1]['source']] = [letter_to_index[l]
+                                         for l in row[1]['target']]
 
 
 max_s = max([len(s) for s, i in source_inflection_dict.items()])
@@ -130,7 +135,8 @@ hyperparams['output_seq_length'] = 35
 hyperparams['input_vocab_size'] = len(letters)
 hyperparams['output_vocab_size'] = len(letters)
 
-train_iter = dops.DataIterator(input_vec[:-1000], labels[:-1000], 128, len(input_vec[:-1000]))
+train_iter = dops.DataIterator(input_vec[:-1000], labels[:-1000],
+                               128, len(input_vec[:-1000]))
 val_iter = dops.DataIterator(input_vec[-1000:], labels[-1000:], 128, 1000)
 test_iter = dops.DataIterator(test_vec, test_labels, 128, len(test_vec))
 
@@ -166,8 +172,8 @@ decode_input = [tf.zeros_like(encode_input[0],
 
 # Meat of the model
 keep_prob = tf.placeholder("float")
-cells = [tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.BasicLSTMCell(embedding_dim),
-                                 output_keep_prob=keep_prob)
+cells = [tf.nn.rnn_cell.DropoutWrapper(
+    tf.nn.rnn_cell.BasicLSTMCell(embedding_dim), output_keep_prob=keep_prob)
          for i in range(3)]
 stacked_lstm = tf.nn.rnn_cell.MultiRNNCell(cells)
 
@@ -178,13 +184,16 @@ with tf.variable_scope("decoders") as scope:
 
     scope.reuse_variables()
 
-    decode_outputs_test, decode_state_test = tf.nn.seq2seq.embedding_rnn_seq2seq(
-        encode_input, decode_input, stacked_lstm,
-        input_vocab_size, output_vocab_size,
-        feed_previous=True, embedding_size=128)
+    decode_outputs_test, decode_state_test = \
+        tf.nn.seq2seq.embedding_rnn_seq2seq(encode_input, decode_input,
+                                            stacked_lstm, input_vocab_size,
+                                            output_vocab_size,
+                                            feed_previous=True,
+                                            embedding_size=128)
 
 loss_weights = [tf.ones_like(l, dtype=tf.float32) for l in labels]
-loss = tf.nn.seq2seq.sequence_loss(decode_outputs, labels, loss_weights, output_vocab_size)
+loss = tf.nn.seq2seq.sequence_loss(decode_outputs, labels,
+                                   loss_weights, output_vocab_size)
 optimizer = tf.train.AdamOptimizer(1e-4)
 train_op = optimizer.minimize(loss)
 
@@ -192,24 +201,36 @@ sess.run(tf.global_variables_initializer())
 
 for i in range(len(list(data_train))):
     try:
-        brain.train_batch(train_iter, input_seq_length, output_seq_length, encode_input, labels, train_op, loss, keep_prob, sess)
+        brain.train_batch(train_iter, input_seq_length, output_seq_length,
+                          encode_input, labels, train_op, loss, keep_prob,
+                          sess)
         if i % 500 == 0:
-            val_loss, val_predict = brain.eval_batch(val_iter, 16, input_seq_length, output_seq_length, encode_input, labels, keep_prob, loss, decode_outputs_test, sess)
-            train_loss, train_predict = brain.eval_batch(train_iter, 16, input_seq_length, output_seq_length, encode_input, labels, keep_prob, loss, decode_outputs_test, sess)
-            print("val loss   : %f, val predict   = %.1f%%" % (val_loss, val_predict * 100))
-            print("train loss : %f, train predict = %.1f%%" % (train_loss, train_predict * 100))
-            print
+            val_loss, val_predict = brain.eval_batch(
+                val_iter, 16, input_seq_length, output_seq_length,
+                encode_input, labels, keep_prob, loss, decode_outputs_test,
+                sess)
+            train_loss, train_predict = brain.eval_batch(
+                train_iter, 16, input_seq_length, output_seq_length,
+                encode_input, labels, keep_prob, loss, decode_outputs_test,
+                sess)
+            print("val loss   : %f, val predict   = %.1f%%" % (
+                val_loss, val_predict * 100))
+            print("train loss : %f, train predict = %.1f%%" % (
+                train_loss, train_predict * 100))
+
             sys.stdout.flush()
     except KeyboardInterrupt:
         print("interrupted by user")
         break
 
-eval_loss, output, X, Y = brain.get_eval_batch_data(test_iter, input_seq_length, output_seq_length, encode_input, labels, keep_prob, loss, decode_outputs_test, sess)
+eval_loss, output, X, Y = brain.get_eval_batch_data(
+    test_iter, input_seq_length, output_seq_length, encode_input, labels,
+    keep_prob, loss, decode_outputs_test, sess)
 
 for index in range(len(output)):
     letters = "".join([index_to_letter[p] for p in X.T[index]])
     real = [index_to_letter[l] for l in Y.T[index]]
-    predict = [index_to_letter[l] for l in np.argmax(output, axis = 2)[index]]
+    predict = [index_to_letter[l] for l in np.argmax(output, axis=2)[index]]
 
     print(letters.ljust(40),)
     print("".join(real).split("_")[0].ljust(17),)
