@@ -14,8 +14,11 @@ import pickle
 from sklearn import tree
 from sklearn.metrics import precision_recall_fscore_support as prf
 
-# for CRF
-from sklearn.svm import LinearSVC
+# for SVM
+from sklearn.svm import LinearSVC, SVC
+
+# for linera regression
+from sklearn.linear_model import LinearRegression
 
 # for Random forest
 from sklearn.ensemble import RandomForestClassifier
@@ -191,7 +194,7 @@ def train_Kmodel_classifier(language, classifier='decision_tree',
     feature_vectors = np.array([])
     # Calculate Feature Vector
     for source_node in source_df['source_node']:
-        if train_fasttext or random_test:
+        if train_fasttext or random_training:
             continue
         if source_node not in label_source_nodes:
             continue
@@ -280,6 +283,13 @@ def train_a_classifier(feature_vectors, labels, classifier='decision_tree'):
         clf = RandomForestClassifier()
         clf.fit(feature_vectors, labels)
         return(clf)
+    elif classifier == 'svm':
+        clf = SVC()
+        clf.fit(feature_vectors, labels)
+        return(clf)
+    elif classifier == 'linear_regression':
+        clf = LinearRegression()
+        clf.fit(feature_vectors, labels)
     else:
         raise('Classifier not supported!')
 
@@ -486,12 +496,12 @@ def test_model_accuracy(language, classifier='decision_tree',
                 elif prediction_vectors[i][j] == 0:
                     FN += 1
 
-    P = float(TP) / (TP + FP)
-    R = float(TP) / (TP + FN)
-    F = 2 / np.sum(1/np.array([P, R]))
-    A = (TP + TN) / float(TP + TN + FP + FN)
-    print('ones and zeros', ones, zeros)
-    GLOBAL = {'P': P, 'R': R, 'F': F, 'A': A, 'params': [TP, FP, TN, FN]}
+    # P = float(TP) / (TP + FP)
+    # R = float(TP) / (TP + FN)
+    # F = 2 / np.sum(1/np.array([P, R]))
+    # A = (TP + TN) / float(TP + TN + FP + FN)
+    # print('ones and zeros', ones, zeros)
+    # GLOBAL = {'P': P, 'R': R, 'F': F, 'A': A, 'params': [TP, FP, TN, FN]}
     macro_labels = labels_vectors
     macro_preds = prediction_vectors
     macro_prf_support = prf(macro_labels, macro_preds[:macro_labels.shape[0]], average='macro')
