@@ -12,9 +12,8 @@ Current tasks:
 *  [ ] Take out the repeated task into one function
 *  [ ] Use classes to modularize the code (*High Priority*)
 *  [ ] Add code documentation
-*  [ ] Fix operation dictionary(*Urgent*)
-*  [ ] Replace .append strategy in generators with forming dictionary(see gen_labels_matrix for reference)(*Urgent*)
-*  [ ] Complete this list
+*  [x] Fix operation dictionary(*Urgent*)
+*  [x] Replace .append strategy in generators with forming dictionary(see gen_labels_matrix for reference)(*Urgent*)
 *  [x] Report Model performance for polish
 *  [ ] Report Model performance for multiple languages
 *  [x] Compare K-model classifier with CRF and Random Forests
