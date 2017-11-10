@@ -6,7 +6,7 @@ Currently, an Ensemble Classifier of Decision Trees has been built as the baseli
 The documentation for the module will be added soon.
 
 # To do list:
-    * Library todos
-        * [TODO](PSyn/TODO.md)
-    * System todos:
-        * Setup GPU pipeline in the server
+ * Library todos
+   * [TODO](PSyn/TODO.md)
+ * System todos:
+   * Setup GPU pipeline in the server
